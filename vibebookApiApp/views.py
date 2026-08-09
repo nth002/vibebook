@@ -215,17 +215,20 @@ class LoginView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        user = request.user
-        user.is_online = False
-        user.last_seen = timezone.now()
-        user.save()
-        
-        return Response({'success': True, 'message': 'Logged out successfully'}, status=status.HTTP_200_OK)
 
+class LogoutView(APIView):
+    def post(self, request):
+        try:
+            return Response({
+                'success': True,
+                'message': 'Logged out successfully'
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class CreatePostView(APIView):
     permission_classes = [AllowAny]
