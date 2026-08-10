@@ -242,41 +242,6 @@ class Story(models.Model):
     def viewer_count(self):
         return self.viewers.count()
 
-class Notification(models.Model):
-    """
-    Matches notification_model.dart
-    """
-    class NotificationType(models.TextChoices):
-        LIKE = 'like', 'Like'
-        COMMENT = 'comment', 'Comment'
-        FRIEND_REQUEST = 'friend_request', 'Friend Request'
-        FRIEND_REQUEST_ACCEPTED = 'friend_request_accepted', 'Friend Request Accepted'
-        SHARE = 'share', 'Share'
-        MENTION = 'mention', 'Mention'
-    
-    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
-    message = models.TextField(max_length=500)
-    notification_type = models.CharField(max_length=30, choices=NotificationType.choices)
-    is_read = models.BooleanField(default=False)
-    timestamp = models.DateTimeField(auto_now_add=True)
-    
-    # Related objects
-    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_notifications', null=True)
-    post = models.ForeignKey(Post, on_delete=models.CASCADE, null=True, blank=True)
-    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, null=True, blank=True)
-    
-    class Meta:
-        db_table = 'notifications'
-        ordering = ['-timestamp']
-        indexes = [
-            models.Index(fields=['user', '-timestamp']),
-            models.Index(fields=['is_read']),
-            models.Index(fields=['notification_type']),
-        ]
-    
-    def __str__(self):
-        return f'{self.user.full_name}: {self.message[:50]}'
 
 class CallHistory(models.Model):
     """
@@ -334,3 +299,288 @@ class UserDevice(models.Model):
     
     def __str__(self):
         return f'{self.user.full_name} - {self.device_type}'
+
+
+class VibeMatch(models.Model):
+    """
+    VibeMatch Model - For matching users based on mood
+    Matches Flutter VibeMatchModel
+    """
+    class Mood(models.TextChoices):
+        HAPPY = 'happy', 'Happy'
+        MOTIVATED = 'motivated', 'Motivated'
+        CALM = 'calm', 'Calm'
+        EXCITED = 'excited', 'Excited'
+        GRATEFUL = 'grateful', 'Grateful'
+        CONFIDENT = 'confident', 'Confident'
+        ADVENTUROUS = 'adventurous', 'Adventurous'
+        ROMANTIC = 'romantic', 'Romantic'
+        FUN = 'fun', 'Fun'
+        CHILL = 'chill', 'Chill'
+
+    class LookingFor(models.TextChoices):
+        FRIENDSHIP = 'friendship', 'Friendship'
+        DATING = 'dating', 'Dating'
+        RELATIONSHIP = 'relationship', 'Relationship'
+        ACTIVITY_PARTNER = 'activityPartner', 'Activity Partner'
+        CHAT = 'chat', 'Just Chat'
+        NETWORKING = 'networking', 'Networking'
+
+    class Gender(models.TextChoices):
+        MALE = 'male', 'Male'
+        FEMALE = 'female', 'Female'
+        OTHER = 'other', 'Other'
+        PREFER_NOT_TO_SAY = 'prefer_not_to_say', 'Prefer not to say'
+
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='vibe_matches')
+    mood = models.CharField(max_length=20, choices=Mood.choices, default=Mood.HAPPY)
+    bio = models.TextField(blank=True, null=True, max_length=500)
+    interests = models.JSONField(default=list, blank=True)  # List of interests
+    age = models.IntegerField(null=True, blank=True)
+    gender = models.CharField(max_length=20, choices=Gender.choices, default=Gender.PREFER_NOT_TO_SAY)
+    looking_for = models.CharField(max_length=20, choices=LookingFor.choices, default=LookingFor.FRIENDSHIP)
+    match_percentage = models.FloatField(default=0.0)
+    is_online = models.BooleanField(default=False)
+    last_seen = models.DateTimeField(auto_now=True)
+    is_liked = models.BooleanField(default=False)
+    is_matched = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'vibe_matches'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['mood']),
+            models.Index(fields=['is_matched']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.full_name} - {self.mood}"
+
+
+class VibeMatchLike(models.Model):
+    """
+    Track likes between users in VibeMatch
+    """
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    from_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='vibe_likes_sent')
+    to_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='vibe_likes_received')
+    is_super_like = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'vibe_match_likes'
+        unique_together = ['from_user', 'to_user']
+
+    def __str__(self):
+        return f"{self.from_user.full_name} -> {self.to_user.full_name}"
+
+
+# ============================================
+# COFFEE DATE MODELS
+# ============================================
+
+class CoffeeShop(models.Model):
+    """
+    Coffee Shop Model for Coffee Date Feature
+    """
+    class Ambiance(models.TextChoices):
+        LUXURY = 'luxury', 'Luxury'
+        COZY = 'cozy', 'Cozy'
+        MODERN = 'modern', 'Modern'
+        VINTAGE = 'vintage', 'Vintage'
+
+    class PriceLevel(models.TextChoices):
+        MODERATE = '$$', 'Moderate'
+        EXPENSIVE = '$$$', 'Expensive'
+        VERY_EXPENSIVE = '$$$$', 'Very Expensive'
+
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    name = models.CharField(max_length=255)
+    image = models.URLField(max_length=500)
+    address = models.TextField()
+    distance = models.CharField(max_length=50)
+    rating = models.FloatField(default=0.0)
+    review_count = models.IntegerField(default=0)
+    amenities = models.JSONField(default=list, blank=True)  # List of amenities
+    opening_hours = models.JSONField(default=list, blank=True)  # List of opening hours
+    is_luxury = models.BooleanField(default=True)
+    ambiance = models.CharField(max_length=20, choices=Ambiance.choices, default=Ambiance.LUXURY)
+    price_level = models.CharField(max_length=10, choices=PriceLevel.choices, default=PriceLevel.EXPENSIVE)
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'coffee_shops'
+
+    def __str__(self):
+        return self.name
+
+
+class CoffeeDate(models.Model):
+    """
+    Coffee Date Booking Model
+    Matches Flutter CoffeeDateModel
+    """
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        CONFIRMED = 'confirmed', 'Confirmed'
+        COMPLETED = 'completed', 'Completed'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    match_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='coffee_dates')
+    match_user_name = models.CharField(max_length=255)
+    coffee_shop = models.ForeignKey(CoffeeShop, on_delete=models.CASCADE, related_name='coffee_dates')
+    coffee_shop_name = models.CharField(max_length=255)
+    coffee_shop_image = models.URLField(max_length=500)
+    address = models.TextField()
+    distance = models.CharField(max_length=50)
+    rating = models.FloatField(default=0.0)
+    review_count = models.IntegerField(default=0)
+    amenities = models.JSONField(default=list, blank=True)
+    opening_hours = models.JSONField(default=list, blank=True)
+    date_time = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    special_requests = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'coffee_dates'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['match_user', '-created_at']),
+            models.Index(fields=['status']),
+            models.Index(fields=['date_time']),
+        ]
+
+    def __str__(self):
+        return f"{self.match_user_name} - {self.coffee_shop_name}"
+
+
+# ============================================
+# MEME MODELS
+# ============================================
+
+class Meme(models.Model):
+    """
+    Meme Model - For meme sharing and coin earning
+    Matches Flutter MemeModel
+    """
+    class Category(models.TextChoices):
+        ALL = 'all', 'All'
+        FUNNY = 'funny', 'Funny'
+        PROGRAMMING = 'programming', 'Programming'
+        MOTIVATIONAL = 'motivational', 'Motivational'
+        TECHNOLOGY = 'technology', 'Technology'
+        ANIMALS = 'animals', 'Animals'
+        DATING = 'dating', 'Dating'
+        SCHOOL = 'school', 'School'
+        WORK = 'work', 'Work'
+
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    image_url = models.URLField(max_length=500)
+    title = models.CharField(max_length=255)
+    category = models.CharField(max_length=20, choices=Category.choices, default=Category.FUNNY)
+    likes = models.IntegerField(default=0)
+    comments = models.IntegerField(default=0)
+    shares = models.IntegerField(default=0)
+    uploader = models.ForeignKey(User, on_delete=models.CASCADE, related_name='uploaded_memes')
+    uploader_name = models.CharField(max_length=255)
+    uploader_image = models.URLField(max_length=500, blank=True, null=True)
+    is_liked = models.BooleanField(default=False)  # For current user
+    coins = models.IntegerField(default=0)  # Coins earned from this meme
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'memes'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['category']),
+            models.Index(fields=['likes']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} - {self.category}"
+
+
+class MemeLike(models.Model):
+    """
+    Track meme likes and coin earnings
+    """
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='meme_likes')
+    meme = models.ForeignKey(Meme, on_delete=models.CASCADE, related_name='meme_likes')
+    coins_earned = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'meme_likes'
+        unique_together = ['user', 'meme']
+
+    def __str__(self):
+        return f"{self.user.full_name} liked {self.meme.title}"
+
+
+class MemeComment(models.Model):
+    """
+    Comments on Memes
+    """
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='meme_comments')
+    meme = models.ForeignKey(Meme, on_delete=models.CASCADE, related_name='meme_comments')
+    content = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'meme_comments'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.full_name}: {self.content[:50]}"
+
+class Notification(models.Model):
+    """
+    Notification Model - For all features
+    """
+    class NotificationType(models.TextChoices):
+        LIKE = 'like', 'Like'
+        COMMENT = 'comment', 'Comment'
+        FRIEND_REQUEST = 'friend_request', 'Friend Request'
+        FRIEND_REQUEST_ACCEPTED = 'friend_request_accepted', 'Friend Request Accepted'
+        SHARE = 'share', 'Share'
+        MENTION = 'mention', 'Mention'
+        VIBE_MATCH = 'vibe_match', 'Vibe Match'
+        COFFEE_DATE = 'coffee_date', 'Coffee Date'
+        MEME_LIKE = 'meme_like', 'Meme Like'
+
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    message = models.TextField(max_length=500)
+    notification_type = models.CharField(max_length=30, choices=NotificationType.choices)
+    is_read = models.BooleanField(default=False)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    # Related objects
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_notifications', null=True)
+    post = models.ForeignKey('Post', on_delete=models.CASCADE, null=True, blank=True)
+    comment = models.ForeignKey('Comment', on_delete=models.CASCADE, null=True, blank=True)
+    meme = models.ForeignKey(Meme, on_delete=models.CASCADE, null=True, blank=True)
+    vibe_match = models.ForeignKey(VibeMatch, on_delete=models.CASCADE, null=True, blank=True)
+    coffee_date = models.ForeignKey(CoffeeDate, on_delete=models.CASCADE, null=True, blank=True)
+
+    class Meta:
+        db_table = 'notifications'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['is_read']),
+            models.Index(fields=['notification_type']),
+        ]
+
+    def __str__(self):
+        return f'{self.user.full_name}: {self.message[:50]}'
