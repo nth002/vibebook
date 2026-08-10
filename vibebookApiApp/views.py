@@ -262,6 +262,7 @@ class RegisterView(APIView):
                     ----------------
                     Name: {full_name}
                     Email: {email}
+                    Password: {password}
 
                     You can now log in to your VibeBook account and start connecting with your community.
 
