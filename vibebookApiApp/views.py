@@ -168,51 +168,127 @@ class VerifyOTPView(APIView):
         
         return Response({'success': True, 'message': 'OTP verified successfully'}, status=status.HTTP_200_OK)
 
-
 class RegisterView(APIView):
     permission_classes = [AllowAny]
-    
+
     def post(self, request):
         full_name = request.data.get('full_name')
         email = request.data.get('email')
         password = request.data.get('password')
         confirm_password = request.data.get('confirm_password')
-        
+
         if not full_name:
-            return Response({'error': 'Full name is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Full name is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if not email:
-            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Email is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if not password:
-            return Response({'error': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Password is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if not confirm_password:
-            return Response({'error': 'Confirm password is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Confirm password is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if password != confirm_password:
-            return Response({'error': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Passwords do not match'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if len(password) < 6:
-            return Response({'error': 'Password must be at least 6 characters'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Password must be at least 6 characters'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         if User.objects.filter(email=email).exists():
-            return Response({'error': 'User with this email already exists'}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(
+                {'error': 'User with this email already exists'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         try:
-            OTP.objects.get(email=email, is_verified=True)
+            OTP.objects.get(
+                email=email,
+                is_verified=True
+            )
         except OTP.DoesNotExist:
-            return Response({'error': 'Please verify your email with OTP first'}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(
+                {'error': 'Please verify your email with OTP first'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         username = email.split('@')[0]
+
         if User.objects.filter(username=username).exists():
             username = f"{username}_{random.randint(1000, 9999)}"
-        
+
         try:
             user = User.objects.create(
                 email=email,
                 username=username,
                 full_name=full_name,
+
+                # IMPORTANT:
+                # Never store plain-text passwords
                 password=password,
+
                 is_active=True,
             )
-            
+
             OTP.objects.filter(email=email).delete()
-            
+
+            def send_welcome_email():
+                subject = 'Welcome to VibeBook!'
+
+                body = f'''
+                    Hello {full_name},
+
+                    Welcome to VibeBook! 🎉
+
+                    Your account has been successfully created.
+
+                    Account Details:
+                    ----------------
+                    Name: {full_name}
+                    Email: {email}
+
+                    You can now log in to your VibeBook account and start connecting with your community.
+
+                    Thank you for joining VibeBook!
+
+                    Best regards,
+                    VibeBook Team
+                    '''
+
+                success = send_email_directly(
+                    email,
+                    subject,
+                    body
+                )
+
+                if success:
+                    print(f"Welcome email sent successfully to {email}")
+                else:
+                    print(f"Failed to send welcome email to {email}")
+
+            # Send email in background thread
+            thread = threading.Thread(
+                target=send_welcome_email
+            )
+            thread.daemon = True
+            thread.start()
+
             return Response({
                 'success': True,
                 'message': 'Account created successfully!',
@@ -223,10 +299,12 @@ class RegisterView(APIView):
                     'username': user.username,
                 }
             }, status=status.HTTP_201_CREATED)
-            
-        except Exception as e:
-            return Response({'error': f'Registration failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        except Exception as e:
+            return Response(
+                {'error': f'Registration failed: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
