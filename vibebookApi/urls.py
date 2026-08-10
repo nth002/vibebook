@@ -25,6 +25,23 @@ urlpatterns = [
     path('stories/create/', views.AddStoryView.as_view(), name='add-story'),
     path('stories/', views.GetAllStoriesView.as_view(), name='get-stories'),
 
+    path('api/follow/<int:user_id>/', views.SendFriendRequestView.as_view(), name='send-friend-request'),
+    path('api/friend-requests/', views.GetFriendRequestsView.as_view(), name='friend-requests'),
+    path('api/unfollow/<int:user_id>/', views.UnfollowUserView.as_view(), name='unfollow'),
+    path('api/friends/', views.GetFriendsListView.as_view(), name='friends-list'),
+    path('api/accept-request/<int:user_id>/', views.AcceptFriendRequestView.as_view(), name='accept-request'),
+    path('api/reject-request/<int:user_id>/', views.RejectFriendRequestView.as_view(), name='reject-request'),
+
+    path('api/users/', views.GetAllUsersView.as_view(), name='all-users'),  # Add this
+    path('api/update-profile/', views.UpdateProfileView.as_view(), name='update-profile'),
+    path('api/profile/', views.GetProfileView.as_view(), name='profile'),
+
+    path('api/posts/my/', views.GetMyPostsView.as_view(), name='my-posts'),
+
+
+
+
+
 ]
 
 if settings.DEBUG:
