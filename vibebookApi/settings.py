@@ -82,3 +82,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 25  # Non-SSL port
+EMAIL_USE_TLS = False
+EMAIL_USE_SSL = False
+EMAIL_HOST_USER = 'noreply.vibebook@gmail.com'  # Your full Gmail address
+EMAIL_HOST_PASSWORD = 'iwkp tvws vyot drma'  # The 16-character password you just copied
+DEFAULT_FROM_EMAIL = 'noreply.vibebook@gmail.com'  # Your full Gmail address

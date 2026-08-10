@@ -2,6 +2,10 @@ import os
 import uuid
 import random
 import threading
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
@@ -40,7 +44,40 @@ def get_user_from_token(request):
     except UserToken.DoesNotExist:
         return None
 
-# ==================== AUTH VIEWS ====================
+def send_email_directly(recipient_email, subject, body):
+    """
+    Send email directly using smtplib - bypasses Django's email backend
+    """
+    try:
+        # Email configuration
+        sender_email = settings.EMAIL_HOST_USER
+        password = settings.EMAIL_HOST_PASSWORD
+        
+        # Create message
+        message = MIMEMultipart()
+        message["From"] = sender_email
+        message["To"] = recipient_email
+        message["Subject"] = subject
+        
+        # Attach body
+        message.attach(MIMEText(body, "plain"))
+        
+        # Create SSL context
+        context = ssl.create_default_context()
+        
+        # Connect to Gmail SMTP server
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            # Login
+            server.login(sender_email, password)
+            # Send email
+            server.send_message(message)
+        
+        print(f"Email sent successfully to {recipient_email}")
+        return True
+    except Exception as e:
+        print(f"Error sending email directly: {e}")
+        return False
+
 
 class SendOTPView(APIView):
     permission_classes = [AllowAny]
@@ -56,6 +93,10 @@ class SendOTPView(APIView):
         
         otp = str(random.randint(100000, 999999))
         
+        # Delete old OTPs
+        OTP.objects.filter(email=email).delete()
+        
+        # Create new OTP
         OTP.objects.create(
             email=email,
             otp=otp,
@@ -63,20 +104,35 @@ class SendOTPView(APIView):
         )
         
         def send_otp_email():
-            try:
-                send_mail(
-                    'Your VibeBook Verification Code',
-                    f'Your verification code is: {otp}\n\nThis code will expire in 5 minutes.',
-                    settings.DEFAULT_FROM_EMAIL,
-                    [email],
-                    fail_silently=False,
-                )
-            except Exception as e:
-                print(f"Error sending email: {e}")
+            subject = 'Your VibeBook Verification Code'
+            body = f'''
+                Hello,
+
+                Your verification code is: {otp}
+
+                This code will expire in 5 minutes.
+
+                If you didn't request this code, please ignore this email.
+
+                Best regards,
+                VibeBook Team
+            '''
+            success = send_email_directly(email, subject, body)
+            if success:
+                print(f"OTP sent successfully to {email}")
+            else:
+                print(f"Failed to send OTP to {email}")
         
-        threading.Thread(target=send_otp_email).start()
+        # Send email in background thread
+        thread = threading.Thread(target=send_otp_email)
+        thread.daemon = True
+        thread.start()
         
-        return Response({'success': True, 'message': 'OTP sent successfully', 'email': email}, status=status.HTTP_200_OK)
+        return Response({
+            'success': True, 
+            'message': 'OTP sent successfully', 
+            'email': email
+        }, status=status.HTTP_200_OK)
 
 
 class VerifyOTPView(APIView):
