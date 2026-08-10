@@ -16,8 +16,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, OTP, Post, UserToken, Comment, Story
+from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Message
 from django.shortcuts import get_object_or_404
+from django.db.models import Q  # ✅ Add this import at the top
+
+
 
 
 def get_user_from_token(request):
@@ -78,6 +81,94 @@ def send_email_directly(recipient_email, subject, body):
         print(f"Error sending email directly: {e}")
         return False
 
+
+def notify_action(action_type, recipient, sender=None, post=None, comment=None, custom_message=None):
+    """
+    Universal notification function for all actions
+    
+    Usage:
+        notify_action('like', post.user, user, post=post)
+        notify_action('comment', post.user, user, post=post, comment=comment)
+        notify_action('friend_request', target_user, current_user)
+        notify_action('friend_request_accepted', sender, current_user)
+        notify_action('mention', mentioned_user, user, post=post)
+    
+    Args:
+        action_type: 'like', 'comment', 'friend_request', 'friend_request_accepted', 'share', 'mention'
+        recipient: User object who will receive the notification
+        sender: User object who triggered the notification
+        post: Post object (optional)
+        comment: Comment object (optional)
+        custom_message: Custom message (optional)
+    """
+    if not recipient or (sender and recipient == sender):
+        return None
+    
+    return create_notification(
+        user=recipient,
+        notification_type=action_type,
+        sender=sender,
+        post=post,
+        comment=comment,
+        message=custom_message
+    )
+
+# Add this helper function after your imports
+def create_notification(user, notification_type, sender=None, post=None, comment=None, message=None):
+    """
+    Create a notification for a user
+    
+    Args:
+        user: The user who will receive the notification
+        notification_type: 'like', 'comment', 'friend_request', 'friend_request_accepted', 'share', 'mention'
+        sender: The user who triggered the notification (optional)
+        post: The post related to the notification (optional)
+        comment: The comment related to the notification (optional)
+        message: Custom message (optional - will auto-generate if not provided)
+    
+    Returns:
+        Notification object or None
+    """
+    try:
+        # Don't send notification to self
+        if sender and user == sender:
+            return None
+        
+        # Auto-generate message based on type
+        if not message:
+            sender_name = sender.full_name if sender else "Someone"
+            
+            messages = {
+                'like': f"{sender_name} liked your post.",
+                'comment': f"{sender_name} commented on your post.",
+                'friend_request': f"{sender_name} sent you a friend request.",
+                'friend_request_accepted': f"{sender_name} accepted your friend request.",
+                'share': f"{sender_name} shared your post.",
+                'mention': f"{sender_name} mentioned you in a post.",
+                'post_like': f"{sender_name} liked your post.",
+                'comment_like': f"{sender_name} liked your comment.",
+                'friend_online': f"{sender_name} is now online.",
+            }
+            message = messages.get(notification_type, f"{sender_name} interacted with you.")
+        
+        # Create notification
+        notification = Notification.objects.create(
+            id=str(uuid.uuid4()),
+            user=user,
+            message=message,
+            notification_type=notification_type,
+            sender=sender,
+            post=post,
+            comment=comment,
+            is_read=False,
+            timestamp=timezone.now()
+        )
+        
+        return notification
+        
+    except Exception as e:
+        print(f"Error creating notification: {e}")
+        return None
 
 class SendOTPView(APIView):
     permission_classes = [AllowAny]
@@ -521,7 +612,6 @@ class CreatePostView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
-        # Get user from token manually
         user = get_user_from_token(request)
         
         if not user:
@@ -561,6 +651,21 @@ class CreatePostView(APIView):
             images=image_urls,
             post_id=post_id
         )
+        
+        # Check for mentions in post content
+        import re
+        mentioned_usernames = re.findall(r'@(\w+)', content)
+        if mentioned_usernames:
+            mentioned_users = User.objects.filter(username__in=mentioned_usernames)
+            for mentioned_user in mentioned_users:
+                if mentioned_user != user:
+                    create_notification(
+                        user=mentioned_user,
+                        notification_type='mention',
+                        sender=user,
+                        post=post,
+                        message=f"{user.full_name} mentioned you in a post."
+                    )
         
         return Response({
             'success': True,
@@ -825,6 +930,16 @@ class LikePostView(APIView):
         else:
             # Like
             post.likes.add(user)
+            
+            # Send notification to post owner (if not the same user)
+            if post.user != user:
+                create_notification(
+                    user=post.user,
+                    notification_type='like',
+                    sender=user,
+                    post=post
+                )
+            
             return Response({
                 'success': True,
                 'message': 'Post liked successfully',
@@ -884,6 +999,32 @@ class AddCommentView(APIView):
             user_profile_image=user.profile_image.url if user.profile_image else None
         )
         
+        # Send notification to post owner (if not the same user)
+        if post.user != user:
+            create_notification(
+                user=post.user,
+                notification_type='comment',
+                sender=user,
+                post=post,
+                comment=comment
+            )
+        
+        # Check for mentions in comment
+        import re
+        mentioned_usernames = re.findall(r'@(\w+)', content)
+        if mentioned_usernames:
+            mentioned_users = User.objects.filter(username__in=mentioned_usernames)
+            for mentioned_user in mentioned_users:
+                if mentioned_user != user and mentioned_user != post.user:
+                    create_notification(
+                        user=mentioned_user,
+                        notification_type='mention',
+                        sender=user,
+                        post=post,
+                        comment=comment,
+                        message=f"{user.full_name} mentioned you in a comment."
+                    )
+        
         base_url = f"{request.scheme}://{request.get_host()}"
         
         return Response({
@@ -904,7 +1045,6 @@ class AddCommentView(APIView):
                 'created_at': comment.created_at.isoformat(),
             }
         }, status=status.HTTP_201_CREATED)
-
 
 
 class AddStoryView(APIView):
@@ -1093,7 +1233,7 @@ class SendFriendRequestView(APIView):
             )
         
         # Check if friend request already sent
-        if current_user in target_user.friend_requests.all():  # Check if current_user already sent request to target_user
+        if current_user in target_user.friend_requests.all():
             return Response(
                 {"error": "Friend request already sent"},
                 status=status.HTTP_400_BAD_REQUEST
@@ -1106,13 +1246,27 @@ class SendFriendRequestView(APIView):
             target_user.friends.add(current_user)
             target_user.friend_requests.remove(current_user)
             
+            # Send notification for mutual friend
+            create_notification(
+                user=target_user,
+                notification_type='friend_request_accepted',
+                sender=current_user
+            )
+            
             return Response({
                 "message": "You are now friends!",
                 "status": "mutual_friends"
             }, status=status.HTTP_200_OK)
         
         # Send friend request - Add current_user to target_user's friend_requests
-        target_user.friend_requests.add(current_user)  # FIXED: Add sender to receiver's friend_requests
+        target_user.friend_requests.add(current_user)
+        
+        # Send notification to target user
+        create_notification(
+            user=target_user,
+            notification_type='friend_request',
+            sender=current_user
+        )
         
         return Response({
             "message": f"Friend request sent to {target_user.full_name}",
@@ -1269,6 +1423,14 @@ class AcceptFriendRequestView(APIView):
         sender.friends.add(current_user)
         current_user.friend_requests.remove(sender)
         
+        # Send notification to sender
+        create_notification(
+            user=sender,
+            notification_type='friend_request_accepted',
+            sender=current_user,
+            message=f"{current_user.full_name} accepted your friend request."
+        )
+        
         return Response({
             "message": f"You are now friends with {sender.full_name}",
             "status": "accepted"
@@ -1365,4 +1527,599 @@ class GetAllUsersView(APIView):
         return Response({
             "count": all_users.count(),
             "users": data
+        }, status=status.HTTP_200_OK)
+
+
+class GetNotificationsView(APIView):
+    """
+    API to get all notifications for the authenticated user
+    URL: /api/notifications/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Query Params: page (optional), limit (optional)
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            page = int(request.GET.get('page', 1))
+            limit = int(request.GET.get('limit', 20))
+            offset = (page - 1) * limit
+            
+            # Get notifications for user
+            notifications = Notification.objects.filter(user=user).order_by('-timestamp')[offset:offset+limit]
+            total_count = Notification.objects.filter(user=user).count()
+            unread_count = Notification.objects.filter(user=user, is_read=False).count()
+            
+            data = []
+            for notification in notifications:
+                data.append({
+                    'id': notification.id,
+                    'message': notification.message,
+                    'notification_type': notification.notification_type,
+                    'is_read': notification.is_read,
+                    'timestamp': notification.timestamp.isoformat(),
+                    'sender': {
+                        'id': notification.sender.id if notification.sender else None,
+                        'full_name': notification.sender.full_name if notification.sender else None,
+                        'username': notification.sender.username if notification.sender else None,
+                        'profile_image': notification.sender.profile_image.url if notification.sender and notification.sender.profile_image else None,
+                    } if notification.sender else None,
+                    'post_id': notification.post.post_id if notification.post else None,
+                    'comment_id': notification.comment.comment_id if notification.comment else None,
+                })
+            
+            return Response({
+                'success': True,
+                'data': {
+                    'notifications': data,
+                    'unread_count': unread_count,
+                    'pagination': {
+                        'current_page': page,
+                        'per_page': limit,
+                        'total': total_count,
+                        'total_pages': (total_count + limit - 1) // limit if total_count > 0 else 0,
+                    }
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to fetch notifications: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class MarkNotificationReadView(APIView):
+    """
+    API to mark a notification as read
+    URL: /api/notifications/<notification_id>/read/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, notification_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            notification = Notification.objects.get(id=notification_id, user=user)
+            notification.is_read = True
+            notification.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Notification marked as read'
+            }, status=status.HTTP_200_OK)
+            
+        except Notification.DoesNotExist:
+            return Response({
+                'error': 'Notification not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+class MarkAllNotificationsReadView(APIView):
+    """
+    API to mark all notifications as read
+    URL: /api/notifications/read-all/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        count = Notification.objects.filter(user=user, is_read=False).update(is_read=True)
+        
+        return Response({
+            'success': True,
+            'message': f'{count} notifications marked as read'
+        }, status=status.HTTP_200_OK)
+
+
+class GetUnreadCountView(APIView):
+    """
+    API to get unread notification count
+    URL: /api/notifications/unread-count/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        count = Notification.objects.filter(user=user, is_read=False).count()
+        
+        return Response({
+            'success': True,
+            'unread_count': count
+        }, status=status.HTTP_200_OK)
+
+
+class SendMessageView(APIView):
+    """
+    API to send a message to another user
+    URL: /api/messages/send/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Body: {
+        "receiver_id": 2,
+        "content": "Hello!",
+        "message_type": "text"  // optional: text, image, video, audio, file
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        receiver_id = request.data.get('receiver_id')
+        content = request.data.get('content')
+        message_type = request.data.get('message_type', 'text')
+        
+        # Validation
+        if not receiver_id:
+            return Response(
+                {'error': 'Receiver ID is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not content:
+            return Response(
+                {'error': 'Message content is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if receiver exists
+        try:
+            receiver = User.objects.get(id=receiver_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Receiver not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if they are friends
+        if receiver not in user.friends.all():
+            return Response(
+                {'error': 'You can only message friends'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Validate message type
+        valid_types = ['text', 'image', 'video', 'audio', 'file']
+        if message_type not in valid_types:
+            return Response(
+                {'error': f'Invalid message type. Must be one of: {valid_types}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create message
+        message = Message.objects.create(
+            sender=user,
+            receiver=receiver,
+            content=content,
+            message_type=message_type,
+            is_delivered=False,
+            is_read=False,
+        )
+        
+        # You can add notification here (optional)
+        # create_notification(
+        #     user=receiver,
+        #     notification_type='message',
+        #     sender=user,
+        #     message=f"{user.full_name} sent you a message"
+        # )
+        
+        return Response({
+            'success': True,
+            'message': 'Message sent successfully',
+            'data': {
+                'message_id': str(message.message_id),
+                'sender_id': message.sender.id,
+                'receiver_id': message.receiver.id,
+                'content': message.content,
+                'message_type': message.message_type,
+                'is_delivered': message.is_delivered,
+                'is_read': message.is_read,
+                'timestamp': message.timestamp.isoformat(),
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class GetMessagesView(APIView):
+    """
+    API to get messages between two users (logged in user and another user)
+    URL: /api/messages/<user_id>/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Query Params: limit (optional), before (optional)
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request, user_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Get the other user
+        other_user = get_object_or_404(User, id=user_id)
+        
+        # Check if they are friends
+        if other_user not in user.friends.all():
+            return Response(
+                {'error': 'You can only view messages with friends'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Pagination
+        limit = int(request.GET.get('limit', 50))
+        before = request.GET.get('before')  # ISO format datetime
+        
+        # Build query
+        query = Q(
+            Q(sender=user, receiver=other_user) |
+            Q(sender=other_user, receiver=user)
+        )
+        
+        # Filter by before timestamp (for pagination) - DO THIS BEFORE SLICING
+        if before:
+            try:
+                before_datetime = datetime.fromisoformat(before.replace('Z', '+00:00'))
+                query &= Q(timestamp__lt=before_datetime)
+            except ValueError:
+                pass
+        
+        # Get messages with ordering (DO NOT SLICE YET)
+        messages = Message.objects.filter(query).order_by('-timestamp')
+        
+        # Mark unread messages as read - DO THIS BEFORE SLICING
+        unread_messages = messages.filter(sender=other_user, is_read=False)
+        unread_messages.update(is_read=True)
+        
+        # NOW apply the slice for pagination
+        messages = messages[:limit]
+        
+        # Convert to list and reverse for chronological order
+        messages_list = list(messages)
+        messages_list.reverse()
+        
+        data = []
+        for msg in messages_list:
+            data.append({
+                'message_id': str(msg.message_id),
+                'sender_id': msg.sender.id,
+                'sender_name': msg.sender.full_name,
+                'sender_username': msg.sender.username,
+                'sender_profile_image': msg.sender.profile_image.url if msg.sender.profile_image else None,
+                'receiver_id': msg.receiver.id,
+                'content': msg.content,
+                'message_type': msg.message_type,
+                'is_delivered': msg.is_delivered,
+                'is_read': msg.is_read,
+                'timestamp': msg.timestamp.isoformat(),
+            })
+        
+        # Check if there are more messages
+        has_more = Message.objects.filter(query).order_by('-timestamp').count() > limit
+        
+        return Response({
+            'success': True,
+            'data': {
+                'messages': data,
+                'total_count': len(data),
+                'has_more': has_more,
+                'other_user': {
+                    'id': other_user.id,
+                    'full_name': other_user.full_name,
+                    'username': other_user.username,
+                    'profile_image': other_user.profile_image.url if other_user.profile_image else None,
+                    'is_online': other_user.is_online,
+                    'last_seen': other_user.last_seen.isoformat() if other_user.last_seen else None,
+                }
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class MarkMessageReadView(APIView):
+    """
+    API to mark messages as read
+    URL: /api/messages/mark-read/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Body: {"sender_id": 2}  // mark all messages from this sender as read
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        sender_id = request.data.get('sender_id')
+        
+        if not sender_id:
+            return Response(
+                {'error': 'Sender ID is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get sender
+        sender = get_object_or_404(User, id=sender_id)
+        
+        # Mark all unread messages from this sender as read
+        count = Message.objects.filter(
+            sender=sender,
+            receiver=user,
+            is_read=False
+        ).update(is_read=True)
+        
+        return Response({
+            'success': True,
+            'message': f'{count} messages marked as read',
+            'count': count
+        }, status=status.HTTP_200_OK)
+
+
+class GetUnreadMessagesView(APIView):
+    """
+    API to get unread message count
+    URL: /api/messages/unread/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Get count of unread messages for this user
+        unread_count = Message.objects.filter(
+            receiver=user,
+            is_read=False
+        ).count()
+        
+        # Get unread messages grouped by sender
+        unread_by_sender = Message.objects.filter(
+            receiver=user,
+            is_read=False
+        ).values('sender__id', 'sender__full_name', 'sender__username', 'sender__profile_image') \
+         .annotate(count=models.Count('id')) \
+         .order_by('-count')
+        
+        return Response({
+            'success': True,
+            'data': {
+                'total_unread': unread_count,
+                'by_sender': list(unread_by_sender)
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class GetRecentChatsView(APIView):
+    """
+    API to get recent chat list (conversations with friends who have messages)
+    URL: /api/messages/recent/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Get all friends
+        friends = user.friends.all()
+        
+        # Get latest message with each friend
+        recent_chats = []
+        for friend in friends:
+            # Get the latest message between user and friend
+            latest_message = Message.objects.filter(
+                Q(sender=user, receiver=friend) |
+                Q(sender=friend, receiver=user)
+            ).order_by('-timestamp').first()
+            
+            if latest_message:
+                # Get unread count for messages from this friend
+                unread_count = Message.objects.filter(
+                    sender=friend,
+                    receiver=user,
+                    is_read=False
+                ).count()
+                
+                recent_chats.append({
+                    'friend': {
+                        'id': friend.id,
+                        'full_name': friend.full_name,
+                        'username': friend.username,
+                        'profile_image': friend.profile_image.url if friend.profile_image else None,
+                        'is_online': friend.is_online,
+                        'last_seen': friend.last_seen.isoformat() if friend.last_seen else None,
+                    },
+                    'last_message': {
+                        'message_id': str(latest_message.message_id),
+                        'content': latest_message.content,
+                        'message_type': latest_message.message_type,
+                        'is_read': latest_message.is_read,
+                        'is_delivered': latest_message.is_delivered,
+                        'timestamp': latest_message.timestamp.isoformat(),
+                        'sender_id': latest_message.sender.id,
+                    },
+                    'unread_count': unread_count
+                })
+            else:
+                # Friend with no messages yet
+                recent_chats.append({
+                    'friend': {
+                        'id': friend.id,
+                        'full_name': friend.full_name,
+                        'username': friend.username,
+                        'profile_image': friend.profile_image.url if friend.profile_image else None,
+                        'is_online': friend.is_online,
+                        'last_seen': friend.last_seen.isoformat() if friend.last_seen else None,
+                    },
+                    'last_message': None,
+                    'unread_count': 0
+                })
+        
+        # Sort by latest message timestamp
+        recent_chats.sort(
+            key=lambda x: x['last_message']['timestamp'] if x['last_message'] else '',
+            reverse=True
+        )
+        
+        return Response({
+            'success': True,
+            'data': recent_chats
+        }, status=status.HTTP_200_OK)
+
+
+class DeleteMessageView(APIView):
+    """
+    API to delete a message (for both users)
+    URL: /api/messages/<message_id>/delete/
+    Method: DELETE
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def delete(self, request, message_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Get message
+        try:
+            message = Message.objects.get(message_id=message_id)
+        except Message.DoesNotExist:
+            return Response(
+                {'error': 'Message not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if user is sender or receiver
+        if message.sender != user and message.receiver != user:
+            return Response(
+                {'error': 'You are not authorized to delete this message'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Delete the message
+        message.delete()
+        
+        return Response({
+            'success': True,
+            'message': 'Message deleted successfully'
+        }, status=status.HTTP_200_OK)
+
+
+class DeleteChatHistoryView(APIView):
+    """
+    API to delete entire chat history with a user
+    URL: /api/messages/<user_id>/delete-chat/
+    Method: DELETE
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def delete(self, request, user_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        other_user = get_object_or_404(User, id=user_id)
+        
+        # Delete all messages between these two users
+        deleted_count = Message.objects.filter(
+            Q(sender=user, receiver=other_user) |
+            Q(sender=other_user, receiver=user)
+        ).delete()
+        
+        return Response({
+            'success': True,
+            'message': f'Deleted {deleted_count[0]} messages',
+            'count': deleted_count[0]
         }, status=status.HTTP_200_OK)

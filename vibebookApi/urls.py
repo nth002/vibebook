@@ -38,11 +38,20 @@ urlpatterns = [
 
     path('api/posts/my/', views.GetMyPostsView.as_view(), name='my-posts'),
 
+    path('api/notifications/', views.GetNotificationsView.as_view(), name='notifications'),
+    path('api/notifications/<str:notification_id>/read/', views.MarkNotificationReadView.as_view(), name='mark-read'),
+    path('api/notifications/read-all/', views.MarkAllNotificationsReadView.as_view(), name='mark-all-read'),
+    path('api/notifications/unread-count/', views.GetUnreadCountView.as_view(), name='unread-count'),
 
-
-
-
+    path('api/messages/send/', views.SendMessageView.as_view(), name='send-message'),
+    path('api/messages/<int:user_id>/', views.GetMessagesView.as_view(), name='get-messages'),
+    path('api/messages/mark-read/', views.MarkMessageReadView.as_view(), name='mark-read'),
+    path('api/messages/unread/', views.GetUnreadMessagesView.as_view(), name='unread'),
+    path('api/messages/recent/', views.GetRecentChatsView.as_view(), name='recent-chats'),
+    path('api/messages/<str:message_id>/delete/', views.DeleteMessageView.as_view(), name='delete-message'),
+    path('api/messages/<int:user_id>/delete-chat/', views.DeleteChatHistoryView.as_view(), name='delete-chat'),
 ]
+
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
