@@ -4,6 +4,7 @@ import random
 import threading
 import smtplib
 import ssl
+from dateutil import parser
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from django.conf import settings
@@ -16,9 +17,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Message, Meme, MemeLike
+from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Message, Meme, MemeLike, CoffeeShop, DateInvite, DateBooking
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, F # ✅ Add this import at the top
+from django.db import models
+
 from django.db import transaction
 
 
@@ -2407,6 +2410,678 @@ class GetLikedMemesView(APIView):
         
         return Response({
             'success': True,
+            'count': len(data),
+            'data': data
+        }, status=status.HTTP_200_OK)
+
+
+class SendDateInviteView(APIView):
+    """
+    API to send a date invite to a friend
+    URL: /api/date-invite/send/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Body: {
+        "receiver_id": 2,
+        "message": "Would you like to go on a date?"
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        receiver_id = request.data.get('receiver_id')
+        message = request.data.get('message', '')
+        
+        if not receiver_id:
+            return Response(
+                {'error': 'Receiver ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # ✅ Convert to int if string
+            if isinstance(receiver_id, str):
+                receiver_id = int(receiver_id)
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'Invalid receiver ID format'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            receiver = User.objects.get(id=receiver_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if they are friends
+        if receiver not in user.friends.all():
+            return Response(
+                {'error': 'You can only send date invites to friends'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # ✅ Check if there's already a pending invite from sender to receiver
+        existing_invite_sent = DateInvite.objects.filter(
+            sender=user,
+            receiver=receiver,
+            status__in=[DateInvite.Status.PENDING, DateInvite.Status.ACCEPTED]
+        ).exists()
+        
+        if existing_invite_sent:
+            return Response({
+                'error': 'You already have a pending date invite to this user',
+                'existing': True
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # ✅ Also check if receiver has sent a pending invite to sender
+        existing_invite_received = DateInvite.objects.filter(
+            sender=receiver,
+            receiver=user,
+            status__in=[DateInvite.Status.PENDING, DateInvite.Status.ACCEPTED]
+        ).exists()
+        
+        if existing_invite_received:
+            return Response({
+                'error': 'This user has already sent you a date invite',
+                'existing': True
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # ✅ Create date invite
+        date_invite = DateInvite.objects.create(
+            id=str(uuid.uuid4()),
+            sender=user,
+            receiver=receiver,
+            message=message,
+            status=DateInvite.Status.PENDING
+        )
+        
+        # Create notification
+        create_notification(
+            user=receiver,
+            notification_type='date_invite',
+            sender=user,
+            message=f"{user.full_name} sent you a date invite! 💕"
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Date invite sent successfully',
+            'data': {
+                'id': date_invite.id,
+                'sender': {
+                    'id': date_invite.sender.id,
+                    'full_name': date_invite.sender.full_name,
+                    'username': date_invite.sender.username,
+                    'profile_image': date_invite.sender.profile_image.url if date_invite.sender.profile_image else None,
+                },
+                'receiver': {
+                    'id': date_invite.receiver.id,
+                    'full_name': date_invite.receiver.full_name,
+                },
+                'message': date_invite.message,
+                'status': date_invite.status,
+                'created_at': date_invite.created_at.isoformat(),
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class GetDateInvitesView(APIView):
+    """
+    API to get date invites (sent and received)
+    URL: /api/date-invites/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Query Params: type (sent/received/all)
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        invite_type = request.GET.get('type', 'all')
+        
+        # Build query
+        sent_invites = DateInvite.objects.filter(sender=user)
+        received_invites = DateInvite.objects.filter(receiver=user)
+        
+        if invite_type == 'sent':
+            invites = sent_invites
+        elif invite_type == 'received':
+            invites = received_invites
+        else:
+            invites = sent_invites | received_invites
+        
+        invites = invites.order_by('-created_at')
+        
+        data = []
+        for invite in invites:
+            # Determine if current user is sender or receiver
+            is_sender = invite.sender.id == user.id
+            
+            data.append({
+                'id': invite.id,
+                'sender': {
+                    'id': invite.sender.id,
+                    'full_name': invite.sender.full_name,
+                    'username': invite.sender.username,
+                    'profile_image': invite.sender.profile_image.url if invite.sender.profile_image else None,
+                },
+                'receiver': {
+                    'id': invite.receiver.id,
+                    'full_name': invite.receiver.full_name,
+                    'username': invite.receiver.username,
+                    'profile_image': invite.receiver.profile_image.url if invite.receiver.profile_image else None,
+                },
+                'message': invite.message,
+                'status': invite.status,
+                'is_sender': is_sender,
+                'date_time': invite.date_time.isoformat() if invite.date_time else None,
+                'coffee_shop_name': invite.coffee_shop_name,
+                'address': invite.address,
+                'created_at': invite.created_at.isoformat(),
+            })
+        
+        return Response({
+            'success': True,
+            'count': len(data),
+            'data': data
+        }, status=status.HTTP_200_OK)
+
+
+# views.py - Fixed AcceptDateInviteView
+
+class AcceptDateInviteView(APIView):
+    """
+    API to accept a date invite
+    URL: /api/date-invite/accept/<invite_id>/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, invite_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            date_invite = DateInvite.objects.get(id=invite_id)
+        except DateInvite.DoesNotExist:
+            return Response(
+                {'error': 'Date invite not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # ✅ Check if user is the receiver
+        if date_invite.receiver.id != user.id:
+            return Response(
+                {'error': 'You are not authorized to accept this invite'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # ✅ Check if invite is pending
+        if date_invite.status != DateInvite.Status.PENDING:
+            return Response({
+                'error': f'This invite is already {date_invite.status}',
+                'status': date_invite.status
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # ✅ Update status to accepted
+        date_invite.status = DateInvite.Status.ACCEPTED
+        date_invite.save()
+        
+        # Create notification for sender
+        create_notification(
+            user=date_invite.sender,
+            notification_type='date_invite_accepted',
+            sender=user,
+            message=f"{user.full_name} accepted your date invite! 💕"
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Date invite accepted successfully',
+            'data': {
+                'id': date_invite.id,
+                'status': date_invite.status,
+                'sender': {
+                    'id': date_invite.sender.id,
+                    'full_name': date_invite.sender.full_name,
+                },
+                'receiver': {
+                    'id': date_invite.receiver.id,
+                    'full_name': date_invite.receiver.full_name,
+                }
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class RejectDateInviteView(APIView):
+    """
+    API to reject a date invite
+    URL: /api/date-invite/reject/<invite_id>/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, invite_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            date_invite = DateInvite.objects.get(id=invite_id)
+        except DateInvite.DoesNotExist:
+            return Response(
+                {'error': 'Date invite not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # ✅ Check if user is the receiver
+        if date_invite.receiver.id != user.id:
+            return Response(
+                {'error': 'You are not authorized to reject this invite'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # ✅ Check if invite is pending
+        if date_invite.status != DateInvite.Status.PENDING:
+            return Response({
+                'error': f'This invite is already {date_invite.status}',
+                'status': date_invite.status
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # ✅ Update status to rejected
+        date_invite.status = DateInvite.Status.REJECTED
+        date_invite.save()
+        
+        # Create notification for sender
+        create_notification(
+            user=date_invite.sender,
+            notification_type='date_invite_rejected',
+            sender=user,
+            message=f"{user.full_name} declined your date invite"
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Date invite rejected',
+            'data': {
+                'id': date_invite.id,
+                'status': date_invite.status,
+            }
+        }, status=status.HTTP_200_OK)
+
+class BookDateView(APIView):
+    """
+    API to book a date after invite is accepted
+    URL: /api/date/book/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Body: {
+        "invite_id": "uuid",
+        "coffee_shop_id": "1",
+        "date_time": "2026-08-20T19:00:00",
+        "special_requests": "Corner table please"
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        invite_id = request.data.get('invite_id')
+        coffee_shop_id = request.data.get('coffee_shop_id')
+        date_time_str = request.data.get('date_time')
+        special_requests = request.data.get('special_requests', '')
+        
+        if not all([invite_id, coffee_shop_id, date_time_str]):
+            return Response(
+                {'error': 'Invite ID, coffee shop, and date/time are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            date_invite = DateInvite.objects.get(id=invite_id)
+        except DateInvite.DoesNotExist:
+            return Response(
+                {'error': 'Date invite not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if user is part of the invite
+        if user not in [date_invite.sender, date_invite.receiver]:
+            return Response(
+                {'error': 'You are not authorized to book this date'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # ✅ Check if invite is already confirmed (meaning already booked)
+        if date_invite.status == DateInvite.Status.CONFIRMED:
+            return Response({
+                'error': 'This date is already booked',
+                'status': date_invite.status,
+                'data': {
+                    'invite_id': date_invite.id,
+                    'date_time': date_invite.date_time,
+                    'coffee_shop_name': date_invite.coffee_shop_name,
+                    'address': date_invite.address,
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # ✅ Only allow booking if status is ACCEPTED
+        if date_invite.status != DateInvite.Status.ACCEPTED:
+            return Response({
+                'error': f'Cannot book: invite is {date_invite.status}. Must be "accepted" to book.',
+                'current_status': date_invite.status
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            coffee_shop = CoffeeShop.objects.get(id=coffee_shop_id)
+        except CoffeeShop.DoesNotExist:
+            return Response(
+                {'error': 'Coffee shop not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Parse date
+        try:
+            from dateutil import parser
+            date_time = parser.parse(date_time_str)
+        except (ValueError, TypeError, ImportError):
+            try:
+                from django.utils.dateparse import parse_datetime
+                date_time = parse_datetime(date_time_str.replace('Z', '+00:00'))
+                if date_time is None:
+                    raise ValueError
+            except:
+                return Response(
+                    {'error': 'Invalid date format. Use ISO format: 2026-08-20T19:00:00'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # ✅ Check if booking already exists for this invite
+        existing_booking = DateBooking.objects.filter(date_invite=date_invite).first()
+        if existing_booking:
+            return Response({
+                'error': 'A booking already exists for this invite',
+                'booking_id': existing_booking.id,
+                'status': existing_booking.status,
+                'date_time': existing_booking.date_time,
+                'coffee_shop': existing_booking.coffee_shop_name,
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create date booking
+        date_booking = DateBooking.objects.create(
+            id=str(uuid.uuid4()),
+            date_invite=date_invite,
+            booked_by=user,
+            coffee_shop=coffee_shop,
+            coffee_shop_name=coffee_shop.name,
+            address=coffee_shop.address,
+            date_time=date_time,
+            status=DateBooking.Status.PENDING_CONFIRMATION,
+            special_requests=special_requests
+        )
+        
+        # Update date invite
+        date_invite.date_time = date_time
+        date_invite.coffee_shop = coffee_shop
+        date_invite.coffee_shop_name = coffee_shop.name
+        date_invite.address = coffee_shop.address
+        date_invite.special_requests = special_requests
+        date_invite.status = DateInvite.Status.CONFIRMED
+        date_invite.save()
+        
+        # Get the other user for notification
+        other_user = date_invite.receiver if date_invite.sender == user else date_invite.sender
+        
+        # Create notification for other user
+        create_notification(
+            user=other_user,
+            notification_type='date_booked',
+            sender=user,
+            message=f"{user.full_name} booked a date! 🎉 Please confirm.",
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Date booked successfully! Waiting for confirmation.',
+            'data': {
+                'id': date_booking.id,
+                'invite_id': date_invite.id,
+                'coffee_shop': {
+                    'id': coffee_shop.id,
+                    'name': coffee_shop.name,
+                    'image': coffee_shop.image,
+                    'address': coffee_shop.address,
+                },
+                'date_time': date_time.isoformat(),
+                'status': date_booking.status,
+                'special_requests': special_requests,
+                'booked_by': {
+                    'id': user.id,
+                    'full_name': user.full_name,
+                },
+                'other_user': {
+                    'id': other_user.id,
+                    'full_name': other_user.full_name,
+                }
+            }
+        }, status=status.HTTP_201_CREATED)
+
+class ConfirmDateBookingView(APIView):
+    """
+    API to confirm a date booking
+    URL: /api/date/confirm/<booking_id>/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, booking_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            date_booking = DateBooking.objects.get(id=booking_id)
+        except DateBooking.DoesNotExist:
+            return Response(
+                {'error': 'Date booking not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if user is the other party (not the booker)
+        if date_booking.booked_by == user:
+            return Response(
+                {'error': 'You cannot confirm your own booking'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if user is part of the date
+        date_invite = date_booking.date_invite
+        if user not in [date_invite.sender, date_invite.receiver]:
+            return Response(
+                {'error': 'You are not authorized to confirm this booking'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if date_booking.status != DateBooking.Status.PENDING_CONFIRMATION:
+            return Response(
+                {'error': f'Booking is already {date_booking.status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Confirm booking
+        date_booking.status = DateBooking.Status.CONFIRMED
+        date_booking.save()
+        
+        # Create notification for booker
+        create_notification(
+            user=date_booking.booked_by,
+            notification_type='date_confirmed',
+            sender=user,
+            message=f"{user.full_name} confirmed the date! 🎉",
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Date confirmed successfully',
+            'data': {
+                'id': date_booking.id,
+                'status': date_booking.status,
+            }
+        }, status=status.HTTP_200_OK)
+
+
+class GetDateBookingsView(APIView):
+    """
+    API to get all date bookings for a user
+    URL: /api/date/bookings/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Get all bookings where user is involved
+        bookings = DateBooking.objects.filter(
+            models.Q(date_invite__sender=user) | models.Q(date_invite__receiver=user)
+        ).order_by('-created_at')
+        
+        data = []
+        for booking in bookings:
+            date_invite = booking.date_invite
+            other_user = date_invite.receiver if date_invite.sender == user else date_invite.sender
+            
+            data.append({
+                'id': booking.id,
+                'invite_id': date_invite.id,
+                'coffee_shop': {
+                    'id': booking.coffee_shop.id,
+                    'name': booking.coffee_shop.name,
+                    'image': booking.coffee_shop.image,
+                    'address': booking.coffee_shop.address,
+                },
+                'booked_by': {
+                    'id': booking.booked_by.id,
+                    'full_name': booking.booked_by.full_name,
+                    'username': booking.booked_by.username,
+                },
+                'other_user': {
+                    'id': other_user.id,
+                    'full_name': other_user.full_name,
+                    'username': other_user.username,
+                    'profile_image': other_user.profile_image.url if other_user.profile_image else None,
+                },
+                'date_time': booking.date_time.isoformat(),
+                'status': booking.status,
+                'special_requests': booking.special_requests,
+                'is_booker': booking.booked_by.id == user.id,
+                'created_at': booking.created_at.isoformat(),
+            })
+        
+        return Response({
+            'success': True,
+            'count': len(data),
+            'data': data
+        }, status=status.HTTP_200_OK)
+
+
+# views.py - Add this view
+
+class GetCoffeeShopsView(APIView):
+    """
+    API to get all coffee shops
+    URL: /api/coffee-shops/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Get all active coffee shops
+        coffee_shops = CoffeeShop.objects.filter(is_active=True).order_by('-rating', 'name')
+        
+        data = []
+        for shop in coffee_shops:
+            data.append({
+                'id': shop.id,
+                'name': shop.name,
+                'image': shop.image,
+                'address': shop.address,
+                'city': shop.city,
+                'distance': shop.distance,
+                'rating': shop.rating,
+                'review_count': shop.review_count,
+                'amenities': shop.amenities,
+                'opening_hours': shop.opening_hours,
+                'is_luxury': shop.is_luxury,
+                'ambiance': shop.ambiance,
+                'price_level': shop.price_level,
+                'description': shop.description,
+                'latitude': shop.latitude,
+                'longitude': shop.longitude,
+                'phone': getattr(shop, 'phone', None),
+                'website': getattr(shop, 'website', None),
+            })
+        
+        return Response({
+            'success': True,
+            'message': 'Coffee shops fetched successfully',
             'count': len(data),
             'data': data
         }, status=status.HTTP_200_OK)

@@ -349,6 +349,129 @@ class MemeLike(models.Model):
     class Meta:
         unique_together = ['user', 'meme']
 
+
+class CoffeeShop(models.Model):
+    """
+    Coffee Shop Model - Static list of restaurants and coffee shops
+    """
+    class Ambiance(models.TextChoices):
+        LUXURY = 'luxury', 'Luxury'
+        COZY = 'cozy', 'Cozy'
+        MODERN = 'modern', 'Modern'
+        VINTAGE = 'vintage', 'Vintage'
+        ROMANTIC = 'romantic', 'Romantic'
+        OUTDOOR = 'outdoor', 'Outdoor'
+        ROOFTOP = 'rooftop', 'Rooftop'
+
+    class PriceLevel(models.TextChoices):
+        BUDGET = '₹', 'Budget'
+        MODERATE = '₹₹', 'Moderate'
+        EXPENSIVE = '₹₹₹', 'Expensive'
+        VERY_EXPENSIVE = '₹₹₹₹', 'Very Expensive'
+
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    name = models.CharField(max_length=255)
+    image = models.URLField(max_length=500, blank=True, null=True)
+    address = models.TextField()
+    city = models.CharField(max_length=100, default='')
+    distance = models.CharField(max_length=50, blank=True, null=True)
+    rating = models.FloatField(default=0.0)
+    review_count = models.IntegerField(default=0)
+    
+    # Features
+    amenities = models.JSONField(default=list, blank=True)
+    opening_hours = models.JSONField(default=list, blank=True)
+    
+    # Meta
+    is_luxury = models.BooleanField(default=True)
+    ambiance = models.CharField(max_length=20, choices=Ambiance.choices, default=Ambiance.LUXURY)
+    price_level = models.CharField(max_length=10, choices=PriceLevel.choices, default=PriceLevel.EXPENSIVE)
+    
+    # Location
+    latitude = models.FloatField(null=True, blank=True)
+    longitude = models.FloatField(null=True, blank=True)
+    
+    description = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'coffee_shops'
+        ordering = ['-rating', 'name']
+
+    def __str__(self):
+        return self.name
+
+class DateInvite(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        ACCEPTED = 'accepted', 'Accepted'
+        REJECTED = 'rejected', 'Rejected'
+        CANCELLED = 'cancelled', 'Cancelled'
+        CONFIRMED = 'confirmed', 'Confirmed'
+
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_date_invites')
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_date_invites')
+    message = models.TextField(max_length=500, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Date details
+    date_time = models.DateTimeField(null=True, blank=True)
+    coffee_shop = models.ForeignKey('CoffeeShop', on_delete=models.SET_NULL, null=True, blank=True)
+    coffee_shop_name = models.CharField(max_length=255, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    special_requests = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = 'date_invites'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['sender', '-created_at']),
+            models.Index(fields=['receiver', '-created_at']),
+            models.Index(fields=['status']),
+        ]
+
+    def __str__(self):
+        return f"{self.sender.full_name} -> {self.receiver.full_name} ({self.status})"
+
+
+class DateBooking(models.Model):
+    """
+    Date Booking Model - For confirmed date bookings
+    """
+    class Status(models.TextChoices):
+        PENDING_CONFIRMATION = 'pending_confirmation', 'Pending Confirmation'
+        CONFIRMED = 'confirmed', 'Confirmed'
+        COMPLETED = 'completed', 'Completed'
+        CANCELLED = 'cancelled', 'Cancelled'
+
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    date_invite = models.ForeignKey(DateInvite, on_delete=models.CASCADE, related_name='bookings')
+    booked_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='date_bookings')
+    coffee_shop = models.ForeignKey('CoffeeShop', on_delete=models.CASCADE)
+    coffee_shop_name = models.CharField(max_length=255)
+    address = models.TextField()
+    date_time = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING_CONFIRMATION)
+    special_requests = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'date_bookings'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['booked_by', '-created_at']),
+            models.Index(fields=['status']),
+            models.Index(fields=['date_time']),
+        ]
+
+    def __str__(self):
+        return f"{self.booked_by.full_name} - {self.coffee_shop_name} ({self.status})"
+
 class Notification(models.Model):
     """
     Notification Model - For all features

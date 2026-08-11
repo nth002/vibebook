@@ -56,6 +56,20 @@ urlpatterns = [
     path('api/memes/<str:meme_id>/like/', views.LikeMemeView.as_view(), name='like-meme'),
     path('api/memes/<str:meme_id>/share/', views.ShareMemeView.as_view(), name='share-meme'),
     path('api/memes/liked/', views.GetLikedMemesView.as_view(), name='liked-memes'),
+
+    # Date Invite APIs
+    path('api/date-invite/send/', views.SendDateInviteView.as_view(), name='send-date-invite'),
+    path('api/date-invites/', views.GetDateInvitesView.as_view(), name='get-date-invites'),
+    path('api/date-invite/accept/<str:invite_id>/', views.AcceptDateInviteView.as_view(), name='accept-date-invite'),
+    path('api/date-invite/reject/<str:invite_id>/', views.RejectDateInviteView.as_view(), name='reject-date-invite'),
+    
+    # Date Booking APIs
+    path('api/date/book/', views.BookDateView.as_view(), name='book-date'),
+    path('api/date/confirm/<str:booking_id>/', views.ConfirmDateBookingView.as_view(), name='confirm-date-booking'),
+    path('api/date/bookings/', views.GetDateBookingsView.as_view(), name='get-date-bookings'),
+
+    path('api/coffee-shops/', views.GetCoffeeShopsView.as_view(), name='get-coffee-shops'),
+
     
 ]
 
