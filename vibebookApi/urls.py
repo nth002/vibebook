@@ -50,6 +50,13 @@ urlpatterns = [
     path('api/messages/recent/', views.GetRecentChatsView.as_view(), name='recent-chats'),
     path('api/messages/<str:message_id>/delete/', views.DeleteMessageView.as_view(), name='delete-message'),
     path('api/messages/<int:user_id>/delete-chat/', views.DeleteChatHistoryView.as_view(), name='delete-chat'),
+
+    path('api/memes/create/', views.CreateMemeView.as_view(), name='create-meme'),
+    path('api/memes/', views.GetMemesView.as_view(), name='get-memes'),
+    path('api/memes/<str:meme_id>/like/', views.LikeMemeView.as_view(), name='like-meme'),
+    path('api/memes/<str:meme_id>/share/', views.ShareMemeView.as_view(), name='share-meme'),
+    path('api/memes/liked/', views.GetLikedMemesView.as_view(), name='liked-memes'),
+    
 ]
 
 

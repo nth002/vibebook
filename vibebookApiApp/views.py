@@ -16,9 +16,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Message
+from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Message, Meme, MemeLike
 from django.shortcuts import get_object_or_404
-from django.db.models import Q  # ✅ Add this import at the top
+from django.db.models import Q, F # ✅ Add this import at the top
+from django.db import transaction
 
 
 
@@ -2122,4 +2123,290 @@ class DeleteChatHistoryView(APIView):
             'success': True,
             'message': f'Deleted {deleted_count[0]} messages',
             'count': deleted_count[0]
+        }, status=status.HTTP_200_OK)
+
+
+class CreateMemeView(APIView):
+    """
+    API to create a meme
+    URL: /api/memes/create/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Body: {
+        "image_url": "https://example.com/meme.jpg",
+        "title": "Funny Cat Meme",
+        "category": "funny"
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        image_url = request.data.get('image_url')
+        title = request.data.get('title')
+        category = request.data.get('category', 'funny')
+        
+        if not image_url:
+            return Response(
+                {'error': 'Image URL is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not title:
+            return Response(
+                {'error': 'Title is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create meme
+        meme = Meme.objects.create(
+            id=str(uuid.uuid4()),
+            image_url=image_url,
+            title=title,
+            category=category,
+            uploader=user,
+            uploader_name=user.full_name,
+            uploader_image=user.profile_image.url if user.profile_image else None,
+            likes=0,
+            comments=0,
+            shares=0,
+            coins=0,
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Meme created successfully',
+            'data': {
+                'id': meme.id,
+                'image_url': meme.image_url,
+                'title': meme.title,
+                'category': meme.category,
+                'uploader_name': meme.uploader_name,
+                'uploader_image': meme.uploader_image,
+                'likes': meme.likes,
+                'comments': meme.comments,
+                'shares': meme.shares,
+                'coins': meme.coins,
+                'created_at': meme.created_at.isoformat()
+            }
+        }, status=status.HTTP_201_CREATED)
+
+# Get Memes
+class GetMemesView(APIView):
+    """
+    API to get all memes
+    URL: /api/memes/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Query Params: category (optional), page (optional), limit (optional)
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        category = request.GET.get('category', 'all')
+        page = int(request.GET.get('page', 1))
+        limit = int(request.GET.get('limit', 20))
+        offset = (page - 1) * limit
+        
+        # Build query
+        memes = Meme.objects.all()
+        
+        if category and category != 'all':
+            memes = memes.filter(category=category)
+        
+        # Order by likes
+        memes = memes.order_by('-likes', '-created_at')
+        
+        total_count = memes.count()
+        memes = memes[offset:offset + limit]
+        
+        data = []
+        for meme in memes:
+            # Check if user liked this meme
+            is_liked = MemeLike.objects.filter(user=user, meme=meme).exists()
+            
+            data.append({
+                'id': meme.id,
+                'image_url': meme.image_url,
+                'title': meme.title,
+                'category': meme.category,
+                'likes': meme.likes,
+                'comments': meme.comments,
+                'shares': meme.shares,
+                'uploader_name': meme.uploader_name,
+                'uploader_image': meme.uploader_image,
+                'is_liked': is_liked,
+                'coins': meme.coins,
+                'created_at': meme.created_at.isoformat()
+            })
+        
+        return Response({
+            'success': True,
+            'data': data,
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total': total_count,
+                'total_pages': (total_count + limit - 1) // limit
+            }
+        }, status=status.HTTP_200_OK)
+
+class LikeMemeView(APIView):
+    """
+    API to like/unlike a meme (earns coins)
+    URL: /api/memes/<meme_id>/like/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, meme_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            meme = Meme.objects.get(id=meme_id)
+        except Meme.DoesNotExist:
+            return Response(
+                {'error': 'Meme not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if already liked
+        existing_like = MemeLike.objects.filter(user=user, meme=meme).first()
+        
+        with transaction.atomic():
+            if existing_like:
+                # Unlike
+                existing_like.delete()
+                meme.likes = F('likes') - 1
+                meme.save()
+                # ✅ Refresh the object to get the updated value
+                meme.refresh_from_db()
+                
+                return Response({
+                    'success': True,
+                    'message': 'Meme unliked',
+                    'is_liked': False,
+                    'likes_count': meme.likes,
+                }, status=status.HTTP_200_OK)
+            else:
+                # Like
+                MemeLike.objects.create(
+                    id=str(uuid.uuid4()),
+                    user=user,
+                    meme=meme
+                )
+                meme.likes = F('likes') + 1
+                meme.save()
+                # ✅ Refresh the object to get the updated value
+                meme.refresh_from_db()
+                
+                return Response({
+                    'success': True,
+                    'message': 'Meme liked',
+                    'is_liked': True,
+                    'likes_count': meme.likes,
+                }, status=status.HTTP_200_OK)
+
+class ShareMemeView(APIView):
+    """
+    API to share a meme (increases share count)
+    URL: /api/memes/<meme_id>/share/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, meme_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            meme = Meme.objects.get(id=meme_id)
+        except Meme.DoesNotExist:
+            return Response(
+                {'error': 'Meme not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Increment share count
+        meme.shares = F('shares') + 1
+        meme.save()
+        # ✅ Refresh the object to get the updated value
+        meme.refresh_from_db()
+        
+        return Response({
+            'success': True,
+            'message': 'Meme shared successfully',
+            'shares_count': meme.shares,
+        }, status=status.HTTP_200_OK)
+
+class GetLikedMemesView(APIView):
+    """
+    API to get all liked memes by user
+    URL: /api/memes/liked/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # ✅ FIXED: Use 'meme_likes' instead of 'memelike'
+        liked_memes = Meme.objects.filter(meme_likes__user=user).order_by('-meme_likes__created_at')
+        
+        data = []
+        for meme in liked_memes:
+            data.append({
+                'id': meme.id,
+                'image_url': meme.image_url,
+                'title': meme.title,
+                'category': meme.category,
+                'likes': meme.likes,
+                'comments': meme.comments,
+                'shares': meme.shares,
+                'uploader_name': meme.uploader_name,
+                'uploader_image': meme.uploader_image,
+                'is_liked': True,
+                'coins': meme.coins,
+                'created_at': meme.created_at.isoformat()
+            })
+        
+        return Response({
+            'success': True,
+            'count': len(data),
+            'data': data
         }, status=status.HTTP_200_OK)
