@@ -227,6 +227,7 @@ class SendOTPView(APIView):
             'success': True, 
             'message': 'OTP sent successfully', 
             'email': email
+            'otp': otp
         }, status=status.HTTP_200_OK)
 
 
