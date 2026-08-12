@@ -1656,30 +1656,18 @@ class GetAllUsersView(APIView):
 
 
 class GetNotificationsView(APIView):
-    """
-    API to get all notifications for the authenticated user
-    URL: /api/notifications/
-    Method: GET
-    Headers: Authorization: Bearer YOUR_TOKEN
-    Query Params: page (optional), limit (optional)
-    """
     permission_classes = [AllowAny]
     
     def get(self, request):
         user = get_user_from_token(request)
-        
         if not user:
-            return Response(
-                {'error': 'Authentication required'}, 
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({'error': 'Authentication required'}, status=401)
         
         try:
             page = int(request.GET.get('page', 1))
             limit = int(request.GET.get('limit', 20))
             offset = (page - 1) * limit
             
-            # Get notifications for user
             notifications = Notification.objects.filter(user=user).order_by('-timestamp')[offset:offset+limit]
             total_count = Notification.objects.filter(user=user).count()
             unread_count = Notification.objects.filter(user=user, is_read=False).count()
@@ -1697,7 +1685,7 @@ class GetNotificationsView(APIView):
                         'full_name': notification.sender.full_name if notification.sender else None,
                         'username': notification.sender.username if notification.sender else None,
                         # ✅ FIXED: Removed .url
-                        'profile_image': notification.sender.profile_image if notification.sender and notification.sender.profile_image else None,
+                        'profile_image': "",
                     } if notification.sender else None,
                     'post_id': notification.post.post_id if notification.post else None,
                     'comment_id': notification.comment.comment_id if notification.comment else None,
@@ -1715,15 +1703,10 @@ class GetNotificationsView(APIView):
                         'total_pages': (total_count + limit - 1) // limit if total_count > 0 else 0,
                     }
                 }
-            }, status=status.HTTP_200_OK)
+            }, status=200)
             
         except Exception as e:
-            print(f"❌ Error in GetNotificationsView: {e}")
-            import traceback
-            traceback.print_exc()
-            return Response({
-                'error': f'Failed to fetch notifications: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f'Failed to fetch notifications: {str(e)}'}, status=500)
 
 
 class MarkNotificationReadView(APIView):
