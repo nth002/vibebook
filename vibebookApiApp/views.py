@@ -452,117 +452,6 @@ class LoginView(APIView):
             'token': token.token
         }, status=status.HTTP_200_OK)
 
-
-class UpdateProfileView(APIView):
-    """
-    API to update user profile (profile image, cover image, bio, full name)
-    URL: /api/update-profile/
-    Method: PUT or PATCH
-    Headers: Authorization: Bearer YOUR_TOKEN
-    Body: form-data or JSON
-    """
-    permission_classes = [AllowAny]
-    
-    def put(self, request):
-        user = get_user_from_token(request)
-        
-        if not user:
-            return Response(
-                {'error': 'Authentication required'}, 
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-        
-        # Get data from request
-        full_name = request.data.get('full_name')
-        bio = request.data.get('bio')
-        profile_image = request.FILES.get('profile_image')
-        cover_image = request.FILES.get('cover_image')
-        
-        # Update fields if provided
-        if full_name:
-            user.full_name = full_name
-        
-        if bio is not None:  # Allow empty bio
-            user.bio = bio
-        
-        # Handle profile image upload (same way as post images)
-        if profile_image:
-            # Create user folder structure
-            user_folder = os.path.join('profiles', user.username)
-            full_user_folder = os.path.join(settings.MEDIA_ROOT, user_folder)
-            if not os.path.exists(full_user_folder):
-                os.makedirs(full_user_folder)
-            
-            # Generate unique filename
-            filename = f"profile_{uuid.uuid4()}.{profile_image.name.split('.')[-1]}"
-            file_path = os.path.join(full_user_folder, filename)
-            
-            # Save the file
-            default_storage.save(file_path, ContentFile(profile_image.read()))
-            
-            # Delete old profile image if exists
-            if user.profile_image and user.profile_image.name:
-                old_path = os.path.join(settings.MEDIA_ROOT, user.profile_image.name)
-                if os.path.exists(old_path):
-                    os.remove(old_path)
-            
-            # Set the new profile image path
-            user.profile_image = os.path.join(user_folder, filename)
-        
-        # Handle cover image upload (same way as post images)
-        if cover_image:
-            # Create user folder structure
-            user_folder = os.path.join('covers', user.username)
-            full_user_folder = os.path.join(settings.MEDIA_ROOT, user_folder)
-            if not os.path.exists(full_user_folder):
-                os.makedirs(full_user_folder)
-            
-            # Generate unique filename
-            filename = f"cover_{uuid.uuid4()}.{cover_image.name.split('.')[-1]}"
-            file_path = os.path.join(full_user_folder, filename)
-            
-            # Save the file
-            default_storage.save(file_path, ContentFile(cover_image.read()))
-            
-            # Delete old cover image if exists
-            if user.cover_image and user.cover_image.name:
-                old_path = os.path.join(settings.MEDIA_ROOT, user.cover_image.name)
-                if os.path.exists(old_path):
-                    os.remove(old_path)
-            
-            # Set the new cover image path
-            user.cover_image = os.path.join(user_folder, filename)
-        
-        # Save the user
-        user.save()
-        
-        # Build response data
-        base_url = f"{request.scheme}://{request.get_host()}"
-        
-        return Response({
-            'success': True,
-            'message': 'Profile updated successfully',
-            'data': {
-                'id': user.id,
-                'full_name': user.full_name,
-                'username': user.username,
-                'email': user.email,
-                'bio': user.bio,
-                'profile_image': f"{base_url}{settings.MEDIA_URL}{user.profile_image}" if user.profile_image else None,
-                'cover_image': f"{base_url}{settings.MEDIA_URL}{user.cover_image}" if user.cover_image else None,
-                'is_online': user.is_online,
-                'last_seen': user.last_seen,
-                'created_at': user.created_at
-            }
-        }, status=status.HTTP_200_OK)
-    
-    def patch(self, request):
-        """
-        Partial update - same as PUT but only updates provided fields
-        """
-        return self.put(request)
-
-
 class GetProfileView(APIView):
     """
     API to get logged in user's complete profile details
@@ -581,8 +470,7 @@ class GetProfileView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        base_url = f"{request.scheme}://{request.get_host()}"
-        
+        # ✅ Cloudinary URLs are already full HTTPS URLs
         return Response({
             'success': True,
             'data': {
@@ -592,8 +480,8 @@ class GetProfileView(APIView):
                 'username': user.username,
                 'email': user.email,
                 'bio': user.bio,
-                'profile_image': f"{base_url}{settings.MEDIA_URL}{user.profile_image}" if user.profile_image else None,
-                'cover_image': f"{base_url}{settings.MEDIA_URL}{user.cover_image}" if user.cover_image else None,
+                'profile_image': user.profile_image if user.profile_image else None,  # ✅ Cloudinary URL
+                'cover_image': user.cover_image if user.cover_image else None,        # ✅ Cloudinary URL
                 'is_online': user.is_online,
                 'is_active': user.is_active,
                 'last_seen': user.last_seen,
@@ -602,6 +490,142 @@ class GetProfileView(APIView):
                 'pending_requests_count': user.friend_requests.count()
             }
         }, status=status.HTTP_200_OK)
+
+
+class UpdateProfileView(APIView):
+    """
+    API to update user profile using Cloudinary for images
+    URL: /api/update-profile/
+    Method: PUT or PATCH
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Body: 
+        - full_name (string)
+        - bio (string)
+        - profile_image (base64 string)  OR  profile_image (file upload)
+        - cover_image (base64 string)    OR  cover_image (file upload)
+    """
+    permission_classes = [AllowAny]
+    
+    def put(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Get data from request
+        full_name = request.data.get('full_name')
+        bio = request.data.get('bio')
+        
+        # ✅ Handle Profile Image (Base64 or File)
+        profile_image_base64 = request.data.get('profile_image_base64')
+        profile_image_file = request.FILES.get('profile_image')
+        
+        # ✅ Handle Cover Image (Base64 or File)
+        cover_image_base64 = request.data.get('cover_image_base64')
+        cover_image_file = request.FILES.get('cover_image')
+        
+        # Update text fields
+        if full_name:
+            user.full_name = full_name
+        
+        if bio is not None:  # Allow empty bio
+            user.bio = bio
+        
+        # ✅ Upload Profile Image to Cloudinary
+        if profile_image_base64 or profile_image_file:
+            try:
+                image_data = None
+                
+                # Handle base64
+                if profile_image_base64:
+                    if ',' in profile_image_base64:
+                        profile_image_base64 = profile_image_base64.split(',')[1]
+                    image_data = base64.b64decode(profile_image_base64)
+                
+                # Handle file upload
+                elif profile_image_file:
+                    image_data = profile_image_file.read()
+                
+                if image_data and len(image_data) > 100:
+                    # Upload to Cloudinary
+                    upload_result = cloudinary.uploader.upload(
+                        image_data,
+                        folder=f'UserProfileImages/{user.username}',
+                        resource_type='image',
+                        transformation=[
+                            {'width': 300, 'height': 300, 'crop': 'thumb', 'gravity': 'face'},
+                            {'quality': 'auto:good'}
+                        ]
+                    )
+                    
+                    # Get secure URL
+                    user.profile_image = upload_result['secure_url']
+                    print(f"✅ Profile image uploaded to Cloudinary: {user.profile_image}")
+                    
+            except Exception as e:
+                print(f"❌ Error uploading profile image: {e}")
+        
+        # ✅ Upload Cover Image to Cloudinary
+        if cover_image_base64 or cover_image_file:
+            try:
+                image_data = None
+                
+                # Handle base64
+                if cover_image_base64:
+                    if ',' in cover_image_base64:
+                        cover_image_base64 = cover_image_base64.split(',')[1]
+                    image_data = base64.b64decode(cover_image_base64)
+                
+                # Handle file upload
+                elif cover_image_file:
+                    image_data = cover_image_file.read()
+                
+                if image_data and len(image_data) > 100:
+                    # Upload to Cloudinary
+                    upload_result = cloudinary.uploader.upload(
+                        image_data,
+                        folder=f'UserCoverImages/{user.username}',
+                        resource_type='image',
+                        transformation=[
+                            {'width': 800, 'height': 400, 'crop': 'fill', 'gravity': 'auto'},
+                            {'quality': 'auto:good'}
+                        ]
+                    )
+                    
+                    # Get secure URL
+                    user.cover_image = upload_result['secure_url']
+                    print(f"✅ Cover image uploaded to Cloudinary: {user.cover_image}")
+                    
+            except Exception as e:
+                print(f"❌ Error uploading cover image: {e}")
+        
+        # Save user
+        user.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Profile updated successfully',
+            'data': {
+                'id': user.id,
+                'uid': str(user.uid),
+                'full_name': user.full_name,
+                'username': user.username,
+                'email': user.email,
+                'bio': user.bio,
+                'profile_image': user.profile_image if user.profile_image else None,  # ✅ Cloudinary URL
+                'cover_image': user.cover_image if user.cover_image else None,        # ✅ Cloudinary URL
+                'is_online': user.is_online,
+                'last_seen': user.last_seen,
+                'created_at': user.created_at
+            }
+        }, status=status.HTTP_200_OK)
+    
+    def patch(self, request):
+        """Partial update - same as PUT but only updates provided fields"""
+        return self.put(request)
 
 
 class LogoutView(APIView):
