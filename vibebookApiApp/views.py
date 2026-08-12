@@ -2568,7 +2568,6 @@ class SendDateInviteView(APIView):
             )
         
         try:
-            # ✅ Convert to int if string
             if isinstance(receiver_id, str):
                 receiver_id = int(receiver_id)
         except (ValueError, TypeError):
@@ -2585,14 +2584,12 @@ class SendDateInviteView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Check if they are friends
         if receiver not in user.friends.all():
             return Response(
                 {'error': 'You can only send date invites to friends'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # ✅ Check if there's already a pending invite from sender to receiver
         existing_invite_sent = DateInvite.objects.filter(
             sender=user,
             receiver=receiver,
@@ -2605,7 +2602,6 @@ class SendDateInviteView(APIView):
                 'existing': True
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # ✅ Also check if receiver has sent a pending invite to sender
         existing_invite_received = DateInvite.objects.filter(
             sender=receiver,
             receiver=user,
@@ -2618,7 +2614,6 @@ class SendDateInviteView(APIView):
                 'existing': True
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # ✅ Create date invite
         date_invite = DateInvite.objects.create(
             id=str(uuid.uuid4()),
             sender=user,
@@ -2627,7 +2622,6 @@ class SendDateInviteView(APIView):
             status=DateInvite.Status.PENDING
         )
         
-        # Create notification
         create_notification(
             user=receiver,
             notification_type='date_invite',
@@ -2644,7 +2638,8 @@ class SendDateInviteView(APIView):
                     'id': date_invite.sender.id,
                     'full_name': date_invite.sender.full_name,
                     'username': date_invite.sender.username,
-                    'profile_image': date_invite.sender.profile_image.url if date_invite.sender.profile_image else None,
+                    # ✅ FIXED: Removed .url
+                    'profile_image': date_invite.sender.profile_image if date_invite.sender.profile_image else None,
                 },
                 'receiver': {
                     'id': date_invite.receiver.id,
@@ -2655,7 +2650,6 @@ class SendDateInviteView(APIView):
                 'created_at': date_invite.created_at.isoformat(),
             }
         }, status=status.HTTP_201_CREATED)
-
 
 class GetDateInvitesView(APIView):
     """
