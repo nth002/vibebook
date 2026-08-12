@@ -613,6 +613,7 @@ class LogoutView(APIView):
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
+# views.py - CreatePostView
 class CreatePostView(APIView):
     permission_classes = [AllowAny]
     
@@ -621,12 +622,15 @@ class CreatePostView(APIView):
         
         if not user:
             return Response(
-                {'error': 'Authentication required. Please provide valid token.'}, 
+                {'error': 'Authentication required'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        content = request.data.get('content')
-        images = request.FILES.getlist('images')
+        content = request.data.get('content', '')
+        images = request.data.get('images', [])  # ✅ Get base64 images
+        
+        print(f"📥 Received content: {content[:50]}...")
+        print(f"📥 Received {len(images)} images")
         
         if not content:
             return Response({'error': 'Content is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -634,22 +638,64 @@ class CreatePostView(APIView):
         image_urls = []
         post_id = str(uuid.uuid4())[:8]
         
-        if images:
-            user_folder = os.path.join('UserPostImages', user.username)
-            full_user_folder = os.path.join(settings.MEDIA_ROOT, user_folder)
-            if not os.path.exists(full_user_folder):
-                os.makedirs(full_user_folder)
-            
-            post_folder = os.path.join(full_user_folder, post_id)
-            if not os.path.exists(post_folder):
-                os.makedirs(post_folder)
-            
-            for image in images:
-                filename = f"{uuid.uuid4()}.{image.name.split('.')[-1]}"
-                file_path = os.path.join(post_folder, filename)
-                default_storage.save(file_path, ContentFile(image.read()))
-                image_urls.append(os.path.join(user_folder, post_id, filename))
+        # ✅ Process base64 images
+        if images and isinstance(images, list):
+            for idx, base64_image in enumerate(images):
+                if not base64_image:
+                    continue
+                    
+                try:
+                    import base64
+                    import imghdr
+                    
+                    # ✅ Handle data:image/png;base64, prefix
+                    if ',' in base64_image:
+                        base64_image = base64_image.split(',')[1]
+                    
+                    # ✅ Decode base64
+                    image_data = base64.b64decode(base64_image)
+                    
+                    # ✅ Validate image
+                    if len(image_data) < 100:
+                        print(f"⚠️ Image {idx} too small, skipping")
+                        continue
+                    
+                    # ✅ Create folder structure
+                    user_folder = os.path.join('UserPostImages', user.username)
+                    full_user_folder = os.path.join(settings.MEDIA_ROOT, user_folder)
+                    if not os.path.exists(full_user_folder):
+                        os.makedirs(full_user_folder)
+                    
+                    post_folder = os.path.join(full_user_folder, post_id)
+                    if not os.path.exists(post_folder):
+                        os.makedirs(post_folder)
+                    
+                    # ✅ Determine image extension
+                    ext = 'jpg'
+                    try:
+                        ext = imghdr.what(None, image_data) or 'jpg'
+                    except:
+                        ext = 'jpg'
+                    
+                    # ✅ Save image
+                    filename = f"{uuid.uuid4()}.{ext}"
+                    file_path = os.path.join(post_folder, filename)
+                    
+                    with open(file_path, 'wb') as f:
+                        f.write(image_data)
+                    
+                    # ✅ Store relative path
+                    relative_path = os.path.join(user_folder, post_id, filename).replace('\\', '/')
+                    image_urls.append(relative_path)
+                    
+                    print(f"✅ Image {idx} saved: {relative_path}")
+                    
+                except Exception as e:
+                    print(f"❌ Error saving image {idx}: {e}")
+                    import traceback
+                    traceback.print_exc()
         
+        # ✅ Create post
         post = Post.objects.create(
             user=user,
             content=content,
@@ -657,20 +703,7 @@ class CreatePostView(APIView):
             post_id=post_id
         )
         
-        # Check for mentions in post content
-        import re
-        mentioned_usernames = re.findall(r'@(\w+)', content)
-        if mentioned_usernames:
-            mentioned_users = User.objects.filter(username__in=mentioned_usernames)
-            for mentioned_user in mentioned_users:
-                if mentioned_user != user:
-                    create_notification(
-                        user=mentioned_user,
-                        notification_type='mention',
-                        sender=user,
-                        post=post,
-                        message=f"{user.full_name} mentioned you in a post."
-                    )
+        print(f"✅ Post created with {len(image_urls)} images")
         
         return Response({
             'success': True,
@@ -679,7 +712,7 @@ class CreatePostView(APIView):
                 'post_id': post.post_id,
                 'content': post.content,
                 'images': image_urls,
-                'created_at': post.created_at,
+                'created_at': post.created_at.isoformat(),
             }
         }, status=status.HTTP_201_CREATED)
 
