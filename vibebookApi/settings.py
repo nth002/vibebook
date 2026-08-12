@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import timedelta
 import cloudinary
 import cloudinary.uploader
-import cloudinary.api+
+import cloudinary.api
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
