@@ -1,9 +1,11 @@
+# settings.py
 import os
 from pathlib import Path
 from datetime import timedelta
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
+import dj_database_url  # ✅ ADD THIS
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -34,8 +36,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',  # Add this line
-
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
 ]
 
 ROOT_URLCONF = 'vibebookApi.urls'
@@ -58,12 +59,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'vibebookApi.wsgi.application'
 
+# ✅ PostgreSQL DATABASE CONFIGURATION (From your Render Screenshot)
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default='postgresql://vibebookuser:3Vi5PXHOAiciTDnUSBeYjaqchIJRqOcV@dpg-d9u4mtbm8hqs73eh7svg-a.oregon-postgres.render.com/vibebook',
+        conn_max_age=600,
+    )
 }
+
+# ✅ If you prefer manual config (without dj_database_url), use this instead:
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'vibebook',
+#         'USER': 'vibebookuser',
+#         'PASSWORD': '3V15PXHOAic1TDnUSBeYjaqchIJRq0cV',
+#         'HOST': 'dpg-d9u4mtbm8hqs73eh7svg-a.singapore.render.com',
+#         'PORT': '5432',
+#     }
+# }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -86,16 +100,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
+# ✅ Email Configuration (Gmail)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 25  # Non-SSL port
-EMAIL_USE_TLS = False
+EMAIL_PORT = 587  # ✅ Changed to 587 for TLS (more secure)
+EMAIL_USE_TLS = True  # ✅ Changed to True
 EMAIL_USE_SSL = False
-EMAIL_HOST_USER = 'noreply.vibebook@gmail.com'  # Your full Gmail address
-EMAIL_HOST_PASSWORD = 'iwkp tvws vyot drma'  # The 16-character password you just copied
-DEFAULT_FROM_EMAIL = 'noreply.vibebook@gmail.com'  # Your full Gmail address
+EMAIL_HOST_USER = 'noreply.vibebook@gmail.com'
+EMAIL_HOST_PASSWORD = 'iwkp tvws vyot drma'
+DEFAULT_FROM_EMAIL = 'noreply.vibebook@gmail.com'
 
-
+# ✅ Cloudinary Configuration
 cloudinary.config(
     cloud_name="qn9uvuof",
     api_key="831393533574731",
