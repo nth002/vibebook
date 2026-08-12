@@ -1696,7 +1696,8 @@ class GetNotificationsView(APIView):
                         'id': notification.sender.id if notification.sender else None,
                         'full_name': notification.sender.full_name if notification.sender else None,
                         'username': notification.sender.username if notification.sender else None,
-                        'profile_image': notification.sender.profile_image.url if notification.sender and notification.sender.profile_image else None,
+                        # ✅ FIXED: Removed .url
+                        'profile_image': notification.sender.profile_image if notification.sender and notification.sender.profile_image else None,
                     } if notification.sender else None,
                     'post_id': notification.post.post_id if notification.post else None,
                     'comment_id': notification.comment.comment_id if notification.comment else None,
@@ -1717,6 +1718,9 @@ class GetNotificationsView(APIView):
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
+            print(f"❌ Error in GetNotificationsView: {e}")
+            import traceback
+            traceback.print_exc()
             return Response({
                 'error': f'Failed to fetch notifications: {str(e)}'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
