@@ -928,25 +928,32 @@ class GetMyPostsView(APIView):
             
             posts_data = []
             for post in paginated_posts:
-                # Build full image URLs
+                # ✅ FIX: Cloudinary URLs are already full HTTPS URLs
                 image_urls = []
                 full_image_urls = []
                 for img_path in post.images:
                     if img_path:
-                        image_urls.append(f"{settings.MEDIA_URL}{img_path}")
-                        full_image_urls.append(f"{base_url}{settings.MEDIA_URL}{img_path}")
+                        # If it's already a full URL, use it directly
+                        if img_path.startswith('http'):
+                            image_urls.append(img_path)
+                            full_image_urls.append(img_path)
+                        else:
+                            # Fallback for local (should not happen on Render)
+                            image_urls.append(f"{settings.MEDIA_URL}{img_path}")
+                            full_image_urls.append(f"{base_url}{settings.MEDIA_URL}{img_path}")
                 
                 # Get all comments for this post
                 comments = post.comments.all().order_by('-created_at')
                 comments_data = []
                 for comment in comments:
+                    # ✅ FIX: Use comment.user.profile_image directly (Cloudinary URL)
                     comments_data.append({
                         'comment_id': comment.comment_id,
                         'user': {
                             'id': comment.user.id,
                             'full_name': comment.user.full_name,
                             'username': comment.user.username,
-                            'profile_image': f"{base_url}{settings.MEDIA_URL}{comment.user.profile_image}" if comment.user.profile_image else None,
+                            'profile_image': comment.user.profile_image if comment.user.profile_image else None,
                         },
                         'content': comment.content,
                         'user_profile_image': comment.user_profile_image,
@@ -962,11 +969,12 @@ class GetMyPostsView(APIView):
                         'id': post.user.id,
                         'full_name': post.user.full_name,
                         'username': post.user.username,
-                        'profile_image': f"{base_url}{settings.MEDIA_URL}{post.user.profile_image}" if post.user.profile_image else None,
+                        # ✅ FIX: Use post.user.profile_image directly (Cloudinary URL)
+                        'profile_image': post.user.profile_image if post.user.profile_image else None,
                     },
                     'content': post.content,
-                    'images': image_urls,
-                    'image_urls': full_image_urls,
+                    'images': image_urls,          # ✅ Full Cloudinary URLs
+                    'image_urls': full_image_urls, # ✅ Full Cloudinary URLs
                     'likes_count': post.likes.count(),
                     'is_liked': post.likes.filter(id=user.id).exists(),
                     'shares': post.shares,
