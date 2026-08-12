@@ -1594,7 +1594,7 @@ class RejectFriendRequestView(APIView):
 
 class GetAllUsersView(APIView):
     """
-    API to get all users from database
+    API to get all users (for friend suggestions)
     URL: /api/users/
     Method: GET
     Headers: Authorization: Bearer YOUR_TOKEN
@@ -1610,41 +1610,49 @@ class GetAllUsersView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        # Get all users except the current user
-        all_users = User.objects.exclude(id=user.id)
-        
-        data = []
-        for db_user in all_users:
-            # Check if current user is friends with this user
-            is_friend = db_user in user.friends.all()
+        try:
+            # Get all users except the current user
+            users = User.objects.exclude(id=user.id)
             
-            # Check if friend request already sent by current user to this user
-            request_sent = user in db_user.friend_requests.all()
+            data = []
+            for u in users:
+                # ✅ FORCE ALL STRINGS TO BE UTF-8 SAFE
+                # Check if profile_image is binary, and clean it
+                profile_image = u.profile_image if u.profile_image else None
+                if profile_image and isinstance(profile_image, bytes):
+                    try:
+                        profile_image = profile_image.decode('utf-8')
+                    except:
+                        profile_image = None
+                
+                data.append({
+                    'id': u.id,
+                    'uid': force_str(u.uid),
+                    'full_name': force_str(u.full_name),
+                    'username': force_str(u.username),
+                    'email': force_str(u.email),
+                    'profile_image': profile_image,  # ✅ Safe string or None
+                    'bio': force_str(u.bio) if u.bio else '',
+                    'is_online': u.is_online,
+                    'last_seen': u.last_seen.isoformat() if u.last_seen else None,
+                    'is_friend': u in user.friends.all(),
+                    'friend_request_sent': user.friend_requests.filter(id=u.id).exists(),
+                    'friend_request_received': u.friend_requests.filter(id=user.id).exists(),
+                })
             
-            # Check if this user sent a request to current user
-            request_received = db_user in user.friend_requests.all()
+            return Response({
+                'success': True,
+                'data': data
+            }, status=status.HTTP_200_OK)
             
-            data.append({
-                "id": db_user.id,
-                "uid": str(db_user.uid),
-                "full_name": db_user.full_name,
-                "username": db_user.username,
-                "email": db_user.email,
-                "bio": db_user.bio,
-                "profile_image": db_user.profile_image.url if db_user.profile_image else None,
-                "cover_image": db_user.cover_image.url if db_user.cover_image else None,
-                "is_online": db_user.is_online,
-                "last_seen": db_user.last_seen,
-                "is_friend": is_friend,
-                "friend_request_sent": request_sent,
-                "friend_request_received": request_received,
-                "created_at": db_user.created_at
-            })
-        
-        return Response({
-            "count": all_users.count(),
-            "users": data
-        }, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(f"❌ Error fetching users: {e}")
+            import traceback
+            traceback.print_exc()
+            return Response({
+                'success': False,
+                'error': f'Failed to load users: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class GetNotificationsView(APIView):
