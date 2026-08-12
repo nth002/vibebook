@@ -1411,7 +1411,7 @@ class GetFriendRequestsView(APIView):
                 "id": friend_user.id,
                 "full_name": friend_user.full_name,
                 "username": friend_user.username,
-                "profile_image": friend_user.profile_image.url if friend_user.profile_image else None,
+                "profile_image": "",
                 "bio": friend_user.bio,
                 "is_online": friend_user.is_online
             })
@@ -1487,7 +1487,7 @@ class GetFriendsListView(APIView):
                 "id": friend_user.id,
                 "full_name": friend_user.full_name,
                 "username": friend_user.username,
-                "profile_image": friend_user.profile_image.url if friend_user.profile_image else None,
+                "profile_image": "",
                 "bio": friend_user.bio,
                 "is_online": friend_user.is_online,
                 "last_seen": friend_user.last_seen
