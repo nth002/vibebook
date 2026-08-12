@@ -28,8 +28,7 @@ import io
 from PIL import Image
 
 from django.db import transaction
-
-
+from django.utils.encoding import force_str
 
 
 def get_user_from_token(request):
@@ -470,26 +469,73 @@ class GetProfileView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        # ✅ Cloudinary URLs are already full HTTPS URLs
-        return Response({
-            'success': True,
-            'data': {
-                'id': user.id,
-                'uid': str(user.uid),
-                'full_name': user.full_name,
-                'username': user.username,
-                'email': user.email,
-                'bio': user.bio,
-                'profile_image': user.profile_image if user.profile_image else None,  # ✅ Cloudinary URL
-                'cover_image': user.cover_image if user.cover_image else None,        # ✅ Cloudinary URL
-                'is_online': user.is_online,
-                'is_active': user.is_active,
-                'last_seen': user.last_seen,
-                'created_at': user.created_at,
-                'friends_count': user.friends.count(),
-                'pending_requests_count': user.friend_requests.count()
+        try:
+            # ✅ SAFELY get counts
+            friends_count = 0
+            pending_requests_count = 0
+            
+            if hasattr(user, 'friends'):
+                try:
+                    friends_count = user.friends.count()
+                except:
+                    friends_count = 0
+            
+            if hasattr(user, 'friend_requests'):
+                try:
+                    pending_requests_count = user.friend_requests.count()
+                except:
+                    pending_requests_count = 0
+
+            # ✅ FORCE ALL STRINGS TO BE UTF-8 SAFE
+            profile_image = user.profile_image if user.profile_image else None
+            cover_image = user.cover_image if user.cover_image else None
+            
+            # Clean up potential binary garbage in image fields
+            if profile_image and isinstance(profile_image, bytes):
+                try:
+                    profile_image = profile_image.decode('utf-8')
+                except:
+                    profile_image = None
+                    
+            if cover_image and isinstance(cover_image, bytes):
+                try:
+                    cover_image = cover_image.decode('utf-8')
+                except:
+                    cover_image = None
+
+            # ✅ Build response with force_str on all text fields
+            response_data = {
+                'success': True,
+                'data': {
+                    'id': user.id,
+                    'uid': force_str(user.uid),
+                    'full_name': force_str(user.full_name),
+                    'username': force_str(user.username),
+                    'email': force_str(user.email),
+                    'bio': force_str(user.bio) if user.bio else '',
+                    'profile_image': profile_image,
+                    'cover_image': cover_image,
+                    'is_online': user.is_online,
+                    'is_active': user.is_active,
+                    'last_seen': user.last_seen.isoformat() if user.last_seen else None,
+                    'created_at': user.created_at.isoformat() if user.created_at else None,
+                    'friends_count': friends_count,
+                    'pending_requests_count': pending_requests_count
+                }
             }
-        }, status=status.HTTP_200_OK)
+            
+            # ✅ Return safely serialized JSON
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"❌ ERROR in GetProfileView: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            return Response({
+                'success': False,
+                'error': f'Internal server error: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class UpdateProfileView(APIView):
@@ -1059,7 +1105,7 @@ class AddCommentView(APIView):
             post=post,
             user=user,
             content=content,
-            user_profile_image=user.profile_image.url if user.profile_image else None
+            user_profile_image=user.profile_image if user.profile_image else None
         )
         
         # Send notification to post owner (if not the same user)
@@ -2640,13 +2686,15 @@ class GetDateInvitesView(APIView):
                     'id': invite.sender.id,
                     'full_name': invite.sender.full_name,
                     'username': invite.sender.username,
-                    'profile_image': invite.sender.profile_image.url if invite.sender.profile_image else None,
+                    # ✅ FIX 1: Use invite.sender for sender's profile image
+                    'profile_image': invite.sender.profile_image if invite.sender.profile_image else None,
                 },
                 'receiver': {
-                    'id': invite.receiver.id,
+                    'id': invite.receiver.id,  # ✅ FIX 2: receiver (not recipient)
                     'full_name': invite.receiver.full_name,
                     'username': invite.receiver.username,
-                    'profile_image': invite.receiver.profile_image.url if invite.receiver.profile_image else None,
+                    # ✅ FIX 3: Use invite.receiver for receiver's profile image
+                    'profile_image': invite.receiver.profile_image if invite.receiver.profile_image else None,
                 },
                 'message': invite.message,
                 'status': invite.status,

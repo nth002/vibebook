@@ -47,8 +47,8 @@ class User(models.Model):
     password = models.CharField(max_length=255)
 
     bio = models.TextField(blank=True, null=True, max_length=500)
-    profile_image = models.ImageField(upload_to='profiles/', blank=True, null=True)
-    cover_image = models.ImageField(upload_to='covers/', blank=True, null=True)
+    profile_image = models.CharField(max_length=500, blank=True, null=True)
+    cover_image =  models.CharField(max_length=500, blank=True, null=True)
 
     friends = models.ManyToManyField('self', symmetrical=True, blank=True)
     friend_requests = models.ManyToManyField(
