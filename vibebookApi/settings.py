@@ -1,6 +1,9 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -91,3 +94,11 @@ EMAIL_USE_SSL = False
 EMAIL_HOST_USER = 'noreply.vibebook@gmail.com'  # Your full Gmail address
 EMAIL_HOST_PASSWORD = 'iwkp tvws vyot drma'  # The 16-character password you just copied
 DEFAULT_FROM_EMAIL = 'noreply.vibebook@gmail.com'  # Your full Gmail address
+
+
+cloudinary.config(
+    cloud_name="qn9uvuof",
+    api_key="831393533574731",
+    api_secret="m3VZvUMGZuSTuc2BEsnPB-IBLFQ",
+    secure=True
+)

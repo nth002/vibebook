@@ -22,6 +22,11 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q, F # ✅ Add this import at the top
 from django.db import models
 
+import cloudinary.uploader
+import base64
+import io
+from PIL import Image
+
 from django.db import transaction
 
 
@@ -613,8 +618,17 @@ class LogoutView(APIView):
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
-# views.py - CreatePostView
 class CreatePostView(APIView):
+    """
+    API to create a new post with base64 images
+    URL: /api/posts/create/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Body: {
+        "content": "Your post content",
+        "images": ["data:image/jpeg;base64,...", "data:image/png;base64,..."]
+    }
+    """
     permission_classes = [AllowAny]
     
     def post(self, request):
@@ -622,84 +636,69 @@ class CreatePostView(APIView):
         
         if not user:
             return Response(
-                {'error': 'Authentication required'},
+                {'error': 'Authentication required'}, 
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
         content = request.data.get('content', '')
-        images = request.data.get('images', [])  # ✅ Get base64 images
+        images = request.data.get('images', [])
         
         print(f"📥 Received content: {content[:50]}...")
         print(f"📥 Received {len(images)} images")
         
         if not content:
-            return Response({'error': 'Content is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Content is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         image_urls = []
         post_id = str(uuid.uuid4())[:8]
         
-        # ✅ Process base64 images
+        # ✅ Process base64 images and upload to Cloudinary
         if images and isinstance(images, list):
             for idx, base64_image in enumerate(images):
                 if not base64_image:
                     continue
                     
                 try:
-                    import base64
-                    import imghdr
-                    
-                    # ✅ Handle data:image/png;base64, prefix
+                    # ✅ Remove data:image prefix if present
                     if ',' in base64_image:
                         base64_image = base64_image.split(',')[1]
                     
                     # ✅ Decode base64
                     image_data = base64.b64decode(base64_image)
                     
-                    # ✅ Validate image
                     if len(image_data) < 100:
                         print(f"⚠️ Image {idx} too small, skipping")
                         continue
                     
-                    # ✅ Create folder structure
-                    user_folder = os.path.join('UserPostImages', user.username)
-                    full_user_folder = os.path.join(settings.MEDIA_ROOT, user_folder)
-                    if not os.path.exists(full_user_folder):
-                        os.makedirs(full_user_folder)
+                    # ✅ Upload to Cloudinary
+                    upload_result = cloudinary.uploader.upload(
+                        image_data,
+                        folder=f'UserPostImages/{user.username}/{post_id}',
+                        resource_type='image',
+                        transformation=[
+                            {'width': 800, 'height': 800, 'crop': 'limit'},
+                            {'quality': 'auto:good'}
+                        ]
+                    )
                     
-                    post_folder = os.path.join(full_user_folder, post_id)
-                    if not os.path.exists(post_folder):
-                        os.makedirs(post_folder)
-                    
-                    # ✅ Determine image extension
-                    ext = 'jpg'
-                    try:
-                        ext = imghdr.what(None, image_data) or 'jpg'
-                    except:
-                        ext = 'jpg'
-                    
-                    # ✅ Save image
-                    filename = f"{uuid.uuid4()}.{ext}"
-                    file_path = os.path.join(post_folder, filename)
-                    
-                    with open(file_path, 'wb') as f:
-                        f.write(image_data)
-                    
-                    # ✅ Store relative path
-                    relative_path = os.path.join(user_folder, post_id, filename).replace('\\', '/')
-                    image_urls.append(relative_path)
-                    
-                    print(f"✅ Image {idx} saved: {relative_path}")
+                    # ✅ Get secure Cloudinary URL
+                    image_url = upload_result['secure_url']
+                    image_urls.append(image_url)
+                    print(f"✅ Image {idx} uploaded: {image_url}")
                     
                 except Exception as e:
-                    print(f"❌ Error saving image {idx}: {e}")
+                    print(f"❌ Error uploading image {idx}: {e}")
                     import traceback
                     traceback.print_exc()
         
-        # ✅ Create post
+        # ✅ Create post with Cloudinary URLs
         post = Post.objects.create(
             user=user,
             content=content,
-            images=image_urls,
+            images=image_urls,  # ✅ Store full Cloudinary URLs
             post_id=post_id
         )
         
@@ -711,7 +710,7 @@ class CreatePostView(APIView):
             'post': {
                 'post_id': post.post_id,
                 'content': post.content,
-                'images': image_urls,
+                'images': image_urls,  # ✅ Return full Cloudinary URLs
                 'created_at': post.created_at.isoformat(),
             }
         }, status=status.HTTP_201_CREATED)
@@ -737,8 +736,7 @@ class GetAllPostsView(APIView):
             )
         
         try:
-            base_url = f"{request.scheme}://{request.get_host()}"
-            
+            # ✅ No need to build base_url for Cloudinary images
             posts = Post.objects.all().order_by('-created_at')
             
             # Pagination
@@ -752,13 +750,16 @@ class GetAllPostsView(APIView):
             
             posts_data = []
             for post in paginated_posts:
-                # Build full image URLs
+                # ✅ Cloudinary images are already full HTTPS URLs
                 image_urls = []
-                full_image_urls = []
                 for img_path in post.images:
                     if img_path:
-                        image_urls.append(f"{settings.MEDIA_URL}{img_path}")
-                        full_image_urls.append(f"{base_url}{settings.MEDIA_URL}{img_path}")
+                        # If it's already a Cloudinary URL, use as is
+                        if img_path.startswith('http'):
+                            image_urls.append(img_path)
+                        else:
+                            # Fallback for local (should not happen on Render)
+                            image_urls.append(f"{settings.MEDIA_URL}{img_path}")
                 
                 # Get all comments for this post
                 comments = post.comments.all().order_by('-created_at')
@@ -770,12 +771,12 @@ class GetAllPostsView(APIView):
                             'id': comment.user.id,
                             'full_name': comment.user.full_name,
                             'username': comment.user.username,
-                            'profile_image': f"{base_url}{settings.MEDIA_URL}{comment.user.profile_image}" if comment.user.profile_image else None,
+                            'profile_image': comment.user.profile_image if comment.user.profile_image and comment.user.profile_image.startswith('http') else None,
                         },
                         'content': comment.content,
                         'user_profile_image': comment.user_profile_image,
                         'likes_count': comment.likes.count(),
-                        'is_liked': comment.likes.filter(id=user.id).exists(),
+                        'is_liked': comment.likes.filter(id=user.id).exists() if user else False,
                         'created_at': comment.created_at.isoformat(),
                     })
                 
@@ -786,13 +787,13 @@ class GetAllPostsView(APIView):
                         'id': post.user.id,
                         'full_name': post.user.full_name,
                         'username': post.user.username,
-                        'profile_image': f"{base_url}{settings.MEDIA_URL}{post.user.profile_image}" if post.user.profile_image else None,
+                        'profile_image': post.user.profile_image if post.user.profile_image and post.user.profile_image.startswith('http') else None,
                     },
                     'content': post.content,
-                    'images': image_urls,
-                    'image_urls': full_image_urls,
+                    'images': image_urls,  # ✅ Full Cloudinary URLs
+                    'image_urls': image_urls,  # ✅ Same as images (Cloudinary)
                     'likes_count': post.likes.count(),
-                    'is_liked': post.likes.filter(id=user.id).exists(),
+                    'is_liked': post.likes.filter(id=user.id).exists() if user else False,
                     'shares': post.shares,
                     'comments': comments_data,
                     'total_likes': post.likes.count(),
