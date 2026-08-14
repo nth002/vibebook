@@ -107,7 +107,7 @@ EMAIL_PORT = 587  # ✅ Changed to 587 for TLS (more secure)
 EMAIL_USE_TLS = True  # ✅ Changed to True
 EMAIL_USE_SSL = False
 EMAIL_HOST_USER = 'noreply.vibebook@gmail.com'
-EMAIL_HOST_PASSWORD = 'wlod cpck rueu iutp'
+EMAIL_HOST_PASSWORD = 'pmhh ogyn edzd oeea'
 DEFAULT_FROM_EMAIL = 'noreply.vibebook@gmail.com'
 
 # ✅ Cloudinary Configuration

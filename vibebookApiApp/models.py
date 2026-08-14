@@ -7,7 +7,6 @@ import secrets  # <-- Add this import
 
 
 
-
 class OTP(models.Model):
     email = models.EmailField()
     otp = models.CharField(max_length=6)
@@ -511,3 +510,167 @@ class Notification(models.Model):
 
     def __str__(self):
         return f'{self.user.full_name}: {self.message[:50]}'
+
+class Advertisement(models.Model):
+    """
+    Advertisement Model - For displaying ads in the feed
+    """
+    class AdType(models.TextChoices):
+        IMAGE = 'image', 'Image'
+        VIDEO = 'video', 'Video'
+        CAROUSEL = 'carousel', 'Carousel'
+
+    class AdStatus(models.TextChoices):
+        DRAFT = 'draft', 'Draft'
+        ACTIVE = 'active', 'Active'
+        PAUSED = 'paused', 'Paused'
+        EXPIRED = 'expired', 'Expired'
+
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    
+    # Ad Content
+    title = models.CharField(max_length=255)
+    description = models.TextField(max_length=1000, blank=True, null=True)
+    image_url = models.URLField(max_length=500)
+    video_url = models.URLField(max_length=500, blank=True, null=True)
+    ad_type = models.CharField(max_length=20, choices=AdType.choices, default=AdType.IMAGE)
+    
+    # Brand/Company
+    brand_name = models.CharField(max_length=255)
+    brand_logo = models.URLField(max_length=500, blank=True, null=True)
+    brand_color = models.CharField(max_length=7, default='#1877F2')  # Hex color code
+    
+    # Call to Action
+    cta_text = models.CharField(max_length=50, default='Learn More')
+    cta_url = models.URLField(max_length=500, blank=True, null=True)
+    cta_action = models.CharField(max_length=50, blank=True, null=True)  # For deep linking
+    
+    # Targeting
+    target_audience = models.JSONField(default=dict, blank=True)  # Age, location, interests
+    target_gender = models.CharField(max_length=20, blank=True, null=True)
+    target_age_min = models.IntegerField(null=True, blank=True)
+    target_age_max = models.IntegerField(null=True, blank=True)
+    target_location = models.CharField(max_length=255, blank=True, null=True)
+    
+    # Scheduling
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
+    timezone = models.CharField(max_length=50, default='UTC')
+    
+    # Status
+    status = models.CharField(max_length=20, choices=AdStatus.choices, default=AdStatus.DRAFT)
+    is_active = models.BooleanField(default=True)
+    
+    # Engagement
+    impressions = models.IntegerField(default=0)
+    clicks = models.IntegerField(default=0)
+    ctr = models.FloatField(default=0.0)  # Click-through rate
+    
+    # Budget
+    budget = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    spent = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    
+    # Creator/Advertiser
+    advertiser = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='ads')
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'advertisements'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['start_date', 'end_date']),
+            models.Index(fields=['-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.brand_name} - {self.title[:50]}"
+    
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now() > self.end_date
+    
+    @property
+    def is_scheduled(self):
+        from django.utils import timezone
+        return timezone.now() < self.start_date
+    
+    @property
+    def is_running(self):
+        from django.utils import timezone
+        return self.is_active and self.start_date <= timezone.now() <= self.end_date
+    
+    def increment_impressions(self):
+        self.impressions += 1
+        self.save()
+    
+    def increment_clicks(self):
+        self.clicks += 1
+        if self.impressions > 0:
+            self.ctr = (self.clicks / self.impressions) * 100
+        self.save()
+    
+    def get_color_code(self):
+        """Convert hex color to Color value for Flutter"""
+        return self.brand_color.lstrip('#')
+
+
+class AdImpression(models.Model):
+    """
+    Track individual ad impressions
+    """
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    ad = models.ForeignKey(Advertisement, on_delete=models.CASCADE, related_name='impression_records')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ad_impressions')
+    viewed_at = models.DateTimeField(auto_now_add=True)
+    viewed_duration = models.IntegerField(default=0)  # seconds
+    is_skipped = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'ad_impressions'
+        ordering = ['-viewed_at']
+        unique_together = ['ad', 'user']
+    
+    def __str__(self):
+        return f"{self.ad.brand_name} - {self.user.full_name}"
+
+
+class AdClick(models.Model):
+    """
+    Track ad clicks
+    """
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    ad = models.ForeignKey(Advertisement, on_delete=models.CASCADE, related_name='click_records')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ad_clicks')
+    clicked_at = models.DateTimeField(auto_now_add=True)
+    clicked_url = models.URLField(max_length=500, blank=True, null=True)
+    
+    class Meta:
+        db_table = 'ad_clicks'
+        ordering = ['-clicked_at']
+    
+    def __str__(self):
+        return f"{self.ad.brand_name} - {self.user.full_name}"
+
+
+class AdDismiss(models.Model):
+    """
+    Track when users dismiss/skip ads
+    """
+    id = models.CharField(max_length=100, primary_key=True, default=uuid.uuid4)
+    ad = models.ForeignKey(Advertisement, on_delete=models.CASCADE, related_name='dismiss_records')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ad_dismisses')
+    dismissed_at = models.DateTimeField(auto_now_add=True)
+    dismiss_reason = models.CharField(max_length=100, blank=True, null=True)  # 'skipped', 'not_interested', etc.
+    
+    class Meta:
+        db_table = 'ad_dismisses'
+        ordering = ['-dismissed_at']
+    
+    def __str__(self):
+        return f"{self.ad.brand_name} - {self.user.full_name}"

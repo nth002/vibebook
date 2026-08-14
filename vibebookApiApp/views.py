@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Message, Meme, MemeLike, CoffeeShop, DateInvite, DateBooking
+from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Message, Meme, MemeLike, CoffeeShop, DateInvite, DateBooking, Advertisement, AdImpression, AdClick, AdDismiss
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, F # ✅ Add this import at the top
 from django.db import models
@@ -3188,4 +3188,488 @@ class GetCoffeeShopsView(APIView):
             'message': 'Coffee shops fetched successfully',
             'count': len(data),
             'data': data
+        }, status=status.HTTP_200_OK)
+
+
+class CreateAdView(APIView):
+    """
+    API to create an advertisement
+    URL: /api/ads/create/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Body: {
+        "title": "Summer Sale! 50% Off",
+        "description": "Get the latest summer collection at 50% off",
+        "image_url": "https://images.unsplash.com/photo-1556742111-a301076d9d18?w=400",
+        "brand_name": "FashionHub",
+        "brand_color": "#FF6B6B",
+        "cta_text": "Shop Now",
+        "cta_url": "https://example.com/summer-sale",
+        "start_date": "2026-08-15T00:00:00Z",
+        "end_date": "2026-09-15T00:00:00Z",
+        "ad_type": "image",
+        "target_gender": "all",
+        "target_age_min": 18,
+        "target_age_max": 65,
+        "target_location": "India"
+    }
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Get data from request
+        title = request.data.get('title')
+        description = request.data.get('description', '')
+        image_url = request.data.get('image_url')
+        brand_name = request.data.get('brand_name')
+        brand_color = request.data.get('brand_color', '#1877F2')
+        cta_text = request.data.get('cta_text', 'Learn More')
+        cta_url = request.data.get('cta_url')
+        start_date_str = request.data.get('start_date')
+        end_date_str = request.data.get('end_date')
+        ad_type = request.data.get('ad_type', 'image')
+        target_gender = request.data.get('target_gender', 'all')
+        target_age_min = request.data.get('target_age_min')
+        target_age_max = request.data.get('target_age_max')
+        target_location = request.data.get('target_location')
+        
+        # Validate required fields
+        if not title:
+            return Response(
+                {'error': 'Title is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not image_url:
+            return Response(
+                {'error': 'Image URL is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not brand_name:
+            return Response(
+                {'error': 'Brand name is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not start_date_str or not end_date_str:
+            return Response(
+                {'error': 'Start date and end date are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Parse dates
+        try:
+            from dateutil import parser
+            start_date = parser.parse(start_date_str)
+            end_date = parser.parse(end_date_str)
+        except:
+            return Response(
+                {'error': 'Invalid date format. Use ISO format: 2026-08-15T00:00:00Z'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if start_date >= end_date:
+            return Response(
+                {'error': 'End date must be after start date'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create advertisement
+        ad = Advertisement.objects.create(
+            id=str(uuid.uuid4()),
+            title=title,
+            description=description,
+            image_url=image_url,
+            brand_name=brand_name,
+            brand_color=brand_color,
+            cta_text=cta_text,
+            cta_url=cta_url,
+            start_date=start_date,
+            end_date=end_date,
+            ad_type=ad_type,
+            target_gender=target_gender,
+            target_age_min=target_age_min,
+            target_age_max=target_age_max,
+            target_location=target_location,
+            advertiser=user,
+            status=Advertisement.AdStatus.ACTIVE,
+            is_active=True
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Advertisement created successfully',
+            'data': {
+                'id': ad.id,
+                'title': ad.title,
+                'description': ad.description,
+                'image_url': ad.image_url,
+                'brand_name': ad.brand_name,
+                'brand_color': ad.brand_color,
+                'cta_text': ad.cta_text,
+                'cta_url': ad.cta_url,
+                'ad_type': ad.ad_type,
+                'start_date': ad.start_date.isoformat(),
+                'end_date': ad.end_date.isoformat(),
+                'status': ad.status,
+                'is_active': ad.is_active,
+                'created_at': ad.created_at.isoformat(),
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class GetActiveAdsView(APIView):
+    """
+    API to get active advertisements for feed
+    URL: /api/ads/active/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Query Params: limit (optional, default 10)
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        try:
+            # ✅ Ensure connection is alive
+            from django.db import connection
+            connection.ensure_connection()
+            
+            user = get_user_from_token(request)
+            
+            if not user:
+                return Response(
+                    {'error': 'Authentication required'},
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+            
+            limit = int(request.GET.get('limit', 10))
+            
+            # ✅ Use select_related to optimize queries
+            active_ads = Advertisement.objects.filter(
+                status=Advertisement.AdStatus.ACTIVE,
+                is_active=True,
+                start_date__lte=timezone.now(),
+                end_date__gte=timezone.now()
+            ).select_related('advertiser').order_by('-created_at')[:limit]
+            
+            # ✅ Batch fetch dismissed ads in one query
+            dismissed_ad_ids = set(
+                AdDismiss.objects.filter(user=user).values_list('ad_id', flat=True)
+            )
+            
+            # ✅ Batch fetch existing impressions in one query
+            existing_impressions = set(
+                AdImpression.objects.filter(user=user).values_list('ad_id', flat=True)
+            )
+            
+            data = []
+            ads_to_record = []
+            
+            for ad in active_ads:
+                if ad.id in dismissed_ad_ids:
+                    continue
+                
+                # ✅ Collect impressions to create in bulk
+                if ad.id not in existing_impressions:
+                    ads_to_record.append(ad)
+                
+                data.append({
+                    'id': ad.id,
+                    'title': ad.title,
+                    'description': ad.description,
+                    'image_url': ad.image_url,
+                    'brand_name': ad.brand_name,
+                    'brand_color': ad.brand_color,
+                    'cta_text': ad.cta_text,
+                    'cta_url': ad.cta_url,
+                    'ad_type': ad.ad_type,
+                    'start_date': ad.start_date.isoformat(),
+                    'end_date': ad.end_date.isoformat(),
+                    'created_at': ad.created_at.isoformat(),
+                })
+            
+            # ✅ Bulk create impressions (single query)
+            if ads_to_record:
+                impressions_to_create = []
+                for ad in ads_to_record:
+                    impressions_to_create.append(
+                        AdImpression(
+                            id=str(uuid.uuid4()),
+                            ad=ad,
+                            user=user
+                        )
+                    )
+                    ad.impressions += 1
+                
+                # Bulk create all impressions
+                AdImpression.objects.bulk_create(impressions_to_create)
+                
+                # Bulk update impression counts
+                Advertisement.objects.bulk_update(
+                    [ad for ad in ads_to_record],
+                    fields=['impressions']
+                )
+            print("data : ", data)
+            
+            return Response({
+                'success': True,
+                'count': len(data),
+                'data': data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"Error in GetActiveAdsView: {e}")
+            from django.db import connection
+            connection.close()
+            return Response({
+                'success': False,
+                'error': 'Failed to load ads',
+                'data': []
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+class GetAllAdsView(APIView):
+    """
+    API to get all advertisements (for admin)
+    URL: /api/ads/all/
+    Method: GET
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Only allow admin or advertiser to see all ads
+        # For now, let's allow all authenticated users (you can add admin check)
+        
+        ads = Advertisement.objects.all().order_by('-created_at')
+        
+        data = []
+        for ad in ads:
+            data.append({
+                'id': ad.id,
+                'title': ad.title,
+                'description': ad.description,
+                'image_url': ad.image_url,
+                'brand_name': ad.brand_name,
+                'brand_color': ad.brand_color,
+                'cta_text': ad.cta_text,
+                'cta_url': ad.cta_url,
+                'ad_type': ad.ad_type,
+                'start_date': ad.start_date.isoformat(),
+                'end_date': ad.end_date.isoformat(),
+                'status': ad.status,
+                'is_active': ad.is_active,
+                'impressions': ad.impressions,
+                'clicks': ad.clicks,
+                'ctr': ad.ctr,
+                'created_at': ad.created_at.isoformat(),
+                'advertiser': {
+                    'id': ad.advertiser.id if ad.advertiser else None,
+                    'full_name': ad.advertiser.full_name if ad.advertiser else None,
+                    'email': ad.advertiser.email if ad.advertiser else None,
+                } if ad.advertiser else None,
+            })
+        
+        return Response({
+            'success': True,
+            'count': len(data),
+            'data': data
+        }, status=status.HTTP_200_OK)
+
+
+class DismissAdView(APIView):
+    """
+    API to dismiss/skip an advertisement
+    URL: /api/ads/dismiss/<ad_id>/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    Body: {"reason": "not_interested"} (optional)
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, ad_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            ad = Advertisement.objects.get(id=ad_id)
+        except Advertisement.DoesNotExist:
+            return Response(
+                {'error': 'Advertisement not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        reason = request.data.get('reason', 'skipped')
+        
+        # Check if already dismissed
+        if AdDismiss.objects.filter(ad=ad, user=user).exists():
+            return Response({
+                'success': True,
+                'message': 'Ad already dismissed'
+            }, status=status.HTTP_200_OK)
+        
+        # Create dismiss record
+        AdDismiss.objects.create(
+            id=str(uuid.uuid4()),
+            ad=ad,
+            user=user,
+            dismiss_reason=reason
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Ad dismissed successfully'
+        }, status=status.HTTP_200_OK)
+
+
+class TrackAdClickView(APIView):
+    """
+    API to track ad click
+    URL: /api/ads/click/<ad_id>/
+    Method: POST
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, ad_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            ad = Advertisement.objects.get(id=ad_id)
+        except Advertisement.DoesNotExist:
+            return Response(
+                {'error': 'Advertisement not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Create click record
+        AdClick.objects.create(
+            id=str(uuid.uuid4()),
+            ad=ad,
+            user=user,
+            clicked_url=ad.cta_url
+        )
+        
+        # Increment clicks
+        ad.increment_clicks()
+        
+        return Response({
+            'success': True,
+            'message': 'Ad click tracked',
+            'redirect_url': ad.cta_url
+        }, status=status.HTTP_200_OK)
+
+
+class UpdateAdView(APIView):
+    """
+    API to update an advertisement
+    URL: /api/ads/update/<ad_id>/
+    Method: PUT or PATCH
+    Headers: Authorization: Bearer YOUR_TOKEN
+    """
+    permission_classes = [AllowAny]
+    
+    def put(self, request, ad_id):
+        user = get_user_from_token(request)
+        
+        if not user:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        try:
+            ad = Advertisement.objects.get(id=ad_id)
+        except Advertisement.DoesNotExist:
+            return Response(
+                {'error': 'Advertisement not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if user is the advertiser (or admin)
+        if ad.advertiser and ad.advertiser != user:
+            return Response(
+                {'error': 'You are not authorized to update this ad'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Update fields
+        ad.title = request.data.get('title', ad.title)
+        ad.description = request.data.get('description', ad.description)
+        ad.image_url = request.data.get('image_url', ad.image_url)
+        ad.brand_name = request.data.get('brand_name', ad.brand_name)
+        ad.brand_color = request.data.get('brand_color', ad.brand_color)
+        ad.cta_text = request.data.get('cta_text', ad.cta_text)
+        ad.cta_url = request.data.get('cta_url', ad.cta_url)
+        ad.status = request.data.get('status', ad.status)
+        ad.is_active = request.data.get('is_active', ad.is_active)
+        ad.target_gender = request.data.get('target_gender', ad.target_gender)
+        ad.target_age_min = request.data.get('target_age_min', ad.target_age_min)
+        ad.target_age_max = request.data.get('target_age_max', ad.target_age_max)
+        ad.target_location = request.data.get('target_location', ad.target_location)
+        
+        # Parse dates if provided
+        if request.data.get('start_date'):
+            try:
+                from dateutil import parser
+                ad.start_date = parser.parse(request.data['start_date'])
+            except:
+                pass
+        
+        if request.data.get('end_date'):
+            try:
+                from dateutil import parser
+                ad.end_date = parser.parse(request.data['end_date'])
+            except:
+                pass
+        
+        ad.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Advertisement updated successfully',
+            'data': {
+                'id': ad.id,
+                'title': ad.title,
+                'description': ad.description,
+                'image_url': ad.image_url,
+                'brand_name': ad.brand_name,
+                'brand_color': ad.brand_color,
+                'cta_text': ad.cta_text,
+                'cta_url': ad.cta_url,
+                'status': ad.status,
+                'is_active': ad.is_active,
+                'start_date': ad.start_date.isoformat(),
+                'end_date': ad.end_date.isoformat(),
+                'updated_at': ad.updated_at.isoformat(),
+            }
         }, status=status.HTTP_200_OK)

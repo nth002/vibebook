@@ -70,6 +70,14 @@ urlpatterns = [
 
     path('api/coffee-shops/', views.GetCoffeeShopsView.as_view(), name='get-coffee-shops'),
 
+
+    path('api/ads/create/', views.CreateAdView.as_view(), name='create-ad'),
+    path('api/ads/active/', views.GetActiveAdsView.as_view(), name='active-ads'),
+    path('api/ads/all/', views.GetAllAdsView.as_view(), name='all-ads'),
+    path('api/ads/dismiss/<str:ad_id>/', views.DismissAdView.as_view(), name='dismiss-ad'),
+    path('api/ads/click/<str:ad_id>/', views.TrackAdClickView.as_view(), name='track-ad-click'),
+    path('api/ads/update/<str:ad_id>/', views.UpdateAdView.as_view(), name='update-ad'),
+
     
 ]
 
