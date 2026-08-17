@@ -21,6 +21,8 @@ from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Me
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, F # ✅ Add this import at the top
 from django.db import models
+from django.shortcuts import render
+
 
 import cloudinary.uploader
 import base64
@@ -29,6 +31,16 @@ from PIL import Image
 
 from django.db import transaction
 from django.utils.encoding import force_str
+
+def create_ad_page(request):
+    """Render create ad page"""
+    return render(request, 'ads/create_ad.html')
+
+def view_ads_page(request):
+    """Render view ads page"""
+    return render(request, 'ads/view_ads.html')
+
+
 
 
 def get_user_from_token(request):
@@ -267,6 +279,7 @@ class VerifyOTPView(APIView):
         otp_obj.save()
         
         return Response({'success': True, 'message': 'OTP verified successfully'}, status=status.HTTP_200_OK)
+
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
@@ -3192,28 +3205,7 @@ class GetCoffeeShopsView(APIView):
 
 
 class CreateAdView(APIView):
-    """
-    API to create an advertisement
-    URL: /api/ads/create/
-    Method: POST
-    Headers: Authorization: Bearer YOUR_TOKEN
-    Body: {
-        "title": "Summer Sale! 50% Off",
-        "description": "Get the latest summer collection at 50% off",
-        "image_url": "https://images.unsplash.com/photo-1556742111-a301076d9d18?w=400",
-        "brand_name": "FashionHub",
-        "brand_color": "#FF6B6B",
-        "cta_text": "Shop Now",
-        "cta_url": "https://example.com/summer-sale",
-        "start_date": "2026-08-15T00:00:00Z",
-        "end_date": "2026-09-15T00:00:00Z",
-        "ad_type": "image",
-        "target_gender": "all",
-        "target_age_min": 18,
-        "target_age_max": 65,
-        "target_location": "India"
-    }
-    """
+    
     permission_classes = [AllowAny]
     
     def post(self, request):
@@ -3673,3 +3665,437 @@ class UpdateAdView(APIView):
                 'updated_at': ad.updated_at.isoformat(),
             }
         }, status=status.HTTP_200_OK)
+
+
+
+class CreateAdView(APIView):
+    """Create advertisement without authentication"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        # Get user from token or create a default user
+        user = get_user_from_token(request)
+        
+        # If no user found, create a default user or use a system user
+        if not user:
+            # Create a default user if none exists
+            try:
+                user = User.objects.get(username='default_advertiser')
+            except User.DoesNotExist:
+                user = User.objects.create_user(
+                    username='default_advertiser',
+                    email='default@example.com',
+                    password='defaultpassword123'
+                )
+        
+        # Get data from request
+        title = request.data.get('title')
+        description = request.data.get('description', '')
+        image_url = request.data.get('image_url')
+        brand_name = request.data.get('brand_name')
+        brand_color = request.data.get('brand_color', '#1877F2')
+        cta_text = request.data.get('cta_text', 'Learn More')
+        cta_url = request.data.get('cta_url')
+        start_date_str = request.data.get('start_date')
+        end_date_str = request.data.get('end_date')
+        ad_type = request.data.get('ad_type', 'image')
+        target_gender = request.data.get('target_gender', 'all')
+        target_age_min = request.data.get('target_age_min')
+        target_age_max = request.data.get('target_age_max')
+        target_location = request.data.get('target_location')
+        
+        # Validate required fields
+        if not title:
+            return Response(
+                {'error': 'Title is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not image_url:
+            return Response(
+                {'error': 'Image URL is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not brand_name:
+            return Response(
+                {'error': 'Brand name is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not start_date_str or not end_date_str:
+            return Response(
+                {'error': 'Start date and end date are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Parse dates
+        try:
+            from dateutil import parser
+            start_date = parser.parse(start_date_str)
+            end_date = parser.parse(end_date_str)
+        except:
+            return Response(
+                {'error': 'Invalid date format. Use ISO format: 2026-08-15T00:00:00Z'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if start_date >= end_date:
+            return Response(
+                {'error': 'End date must be after start date'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create advertisement
+        ad = Advertisement.objects.create(
+            id=str(uuid.uuid4()),
+            title=title,
+            description=description,
+            image_url=image_url,
+            brand_name=brand_name,
+            brand_color=brand_color,
+            cta_text=cta_text,
+            cta_url=cta_url,
+            start_date=start_date,
+            end_date=end_date,
+            ad_type=ad_type,
+            target_gender=target_gender,
+            target_age_min=target_age_min,
+            target_age_max=target_age_max,
+            target_location=target_location,
+            advertiser=user,
+            status=Advertisement.AdStatus.ACTIVE,
+            is_active=True
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Advertisement created successfully',
+            'data': {
+                'id': ad.id,
+                'title': ad.title,
+                'description': ad.description,
+                'image_url': ad.image_url,
+                'brand_name': ad.brand_name,
+                'brand_color': ad.brand_color,
+                'cta_text': ad.cta_text,
+                'cta_url': ad.cta_url,
+                'ad_type': ad.ad_type,
+                'start_date': ad.start_date.isoformat(),
+                'end_date': ad.end_date.isoformat(),
+                'status': ad.status,
+                'is_active': ad.is_active,
+                'created_at': ad.created_at.isoformat(),
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class PublicCreateAdView(APIView):
+    """Public API to create advertisement without authentication"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        # Get or create a default user for public ads
+        
+        
+        # Get data from request
+        title = request.data.get('title')
+        description = request.data.get('description', '')
+        image_url = request.data.get('image_url')
+        brand_name = request.data.get('brand_name')
+        brand_color = request.data.get('brand_color', '#1877F2')
+        cta_text = request.data.get('cta_text', 'Learn More')
+        cta_url = request.data.get('cta_url')
+        start_date_str = request.data.get('start_date')
+        end_date_str = request.data.get('end_date')
+        ad_type = request.data.get('ad_type', 'image')
+        target_gender = request.data.get('target_gender', 'all')
+        target_age_min = request.data.get('target_age_min')
+        target_age_max = request.data.get('target_age_max')
+        target_location = request.data.get('target_location')
+        
+        # Validate required fields
+        if not title:
+            return Response(
+                {'error': 'Title is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not image_url:
+            return Response(
+                {'error': 'Image URL is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not brand_name:
+            return Response(
+                {'error': 'Brand name is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not start_date_str or not end_date_str:
+            return Response(
+                {'error': 'Start date and end date are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Parse dates
+        try:
+            from dateutil import parser
+            start_date = parser.parse(start_date_str)
+            end_date = parser.parse(end_date_str)
+        except:
+            return Response(
+                {'error': 'Invalid date format. Use ISO format: 2026-08-15T00:00:00Z'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if start_date >= end_date:
+            return Response(
+                {'error': 'End date must be after start date'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create advertisement
+        ad = Advertisement.objects.create(
+            id=str(uuid.uuid4()),
+            title=title,
+            description=description,
+            image_url=image_url,
+            brand_name=brand_name,
+            brand_color=brand_color,
+            cta_text=cta_text,
+            cta_url=cta_url,
+            start_date=start_date,
+            end_date=end_date,
+            ad_type=ad_type,
+            target_gender=target_gender,
+            target_age_min=target_age_min,
+            target_age_max=target_age_max,
+            target_location=target_location,
+            # advertiser="1",
+            status=Advertisement.AdStatus.ACTIVE,
+            is_active=True
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Advertisement created successfully',
+            'data': {
+                'id': ad.id,
+                'title': ad.title,
+                'description': ad.description,
+                'image_url': ad.image_url,
+                'brand_name': ad.brand_name,
+                'brand_color': ad.brand_color,
+                'cta_text': ad.cta_text,
+                'cta_url': ad.cta_url,
+                'ad_type': ad.ad_type,
+                'start_date': ad.start_date.isoformat(),
+                'end_date': ad.end_date.isoformat(),
+                'status': ad.status,
+                'is_active': ad.is_active,
+                'created_at': ad.created_at.isoformat(),
+            }
+        }, status=status.HTTP_201_CREATED)
+
+
+class PublicGetAllAdsView(APIView):
+    """
+    Public API to get all advertisements without authentication
+    URL: /api/public/ads/
+    Method: GET
+    No authentication required
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        try:
+            # Get all active ads
+            ads = Advertisement.objects.filter(
+                status=Advertisement.AdStatus.ACTIVE,
+                is_active=True
+            ).order_by('-created_at')
+            
+            data = []
+            for ad in ads:
+                data.append({
+                    'id': ad.id,
+                    'title': ad.title,
+                    'description': ad.description,
+                    'image_url': ad.image_url,
+                    'brand_name': ad.brand_name,
+                    'brand_color': ad.brand_color,
+                    'cta_text': ad.cta_text,
+                    'cta_url': ad.cta_url,
+                    'ad_type': ad.ad_type,
+                    'start_date': ad.start_date.isoformat(),
+                    'end_date': ad.end_date.isoformat(),
+                    'status': ad.status,
+                    'is_active': ad.is_active,
+                    'created_at': ad.created_at.isoformat(),
+                    'target_gender': ad.target_gender,
+                    'target_age_min': ad.target_age_min,
+                    'target_age_max': ad.target_age_max,
+                    'target_location': ad.target_location,
+                })
+            
+            return Response({
+                'success': True,
+                'count': len(data),
+                'data': data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e),
+                'data': []
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PublicGetAdDetailView(APIView):
+    """
+    Public API to get single advertisement details without authentication
+    URL: /api/public/ads/<ad_id>/
+    Method: GET
+    No authentication required
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request, ad_id):
+        try:
+            ad = Advertisement.objects.get(id=ad_id)
+            
+            data = {
+                'id': ad.id,
+                'title': ad.title,
+                'description': ad.description,
+                'image_url': ad.image_url,
+                'brand_name': ad.brand_name,
+                'brand_color': ad.brand_color,
+                'cta_text': ad.cta_text,
+                'cta_url': ad.cta_url,
+                'ad_type': ad.ad_type,
+                'start_date': ad.start_date.isoformat(),
+                'end_date': ad.end_date.isoformat(),
+                'status': ad.status,
+                'is_active': ad.is_active,
+                'created_at': ad.created_at.isoformat(),
+                'target_gender': ad.target_gender,
+                'target_age_min': ad.target_age_min,
+                'target_age_max': ad.target_age_max,
+                'target_location': ad.target_location,
+            }
+            
+            return Response({
+                'success': True,
+                'data': data
+            }, status=status.HTTP_200_OK)
+            
+        except Advertisement.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Advertisement not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PublicTrackAdViewView(APIView):
+    """
+    Public API to track ad views without authentication
+    URL: /api/public/ads/<ad_id>/view/
+    Method: POST
+    No authentication required
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, ad_id):
+        try:
+            ad = Advertisement.objects.get(id=ad_id)
+            
+            # Track view (increment impressions)
+            ad.impressions = getattr(ad, 'impressions', 0) + 1
+            ad.save()
+            
+            return Response({
+                'success': True,
+                'message': 'View tracked successfully'
+            }, status=status.HTTP_200_OK)
+            
+        except Advertisement.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Advertisement not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+class PublicTrackAdClickView(APIView):
+    """
+    Public API to track ad clicks without authentication
+    URL: /api/public/ads/<ad_id>/click/
+    Method: POST
+    No authentication required
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request, ad_id):
+        try:
+            ad = Advertisement.objects.get(id=ad_id)
+            
+            # Track click
+            ad.clicks = getattr(ad, 'clicks', 0) + 1
+            ad.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Click tracked successfully',
+                'redirect_url': ad.cta_url
+            }, status=status.HTTP_200_OK)
+            
+        except Advertisement.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Advertisement not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+
+class PublicGetAdStatsView(APIView):
+    """
+    Public API to get ad statistics without authentication
+    URL: /api/public/ads/<ad_id>/stats/
+    Method: GET
+    No authentication required
+    """
+    permission_classes = [AllowAny]
+    
+    def get(self, request, ad_id):
+        try:
+            ad = Advertisement.objects.get(id=ad_id)
+            
+            stats = {
+                'ad_id': ad.id,
+                'title': ad.title,
+                'views': getattr(ad, 'impressions', 0),
+                'clicks': getattr(ad, 'clicks', 0),
+                'ctr': getattr(ad, 'ctr', 0),
+                'is_active': ad.is_active,
+                'status': ad.status,
+                'start_date': ad.start_date.isoformat(),
+                'end_date': ad.end_date.isoformat(),
+            }
+            
+            return Response({
+                'success': True,
+                'data': stats
+            }, status=status.HTTP_200_OK)
+            
+        except Advertisement.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Advertisement not found'
+            }, status=status.HTTP_404_NOT_FOUND)

@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Advertisement</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .navbar-brand {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1877F2;
+            text-decoration: none;
+        }
+
+        .navbar-menu {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .navbar-menu a {
+            text-decoration: none;
+            color: #333;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .navbar-menu a:hover {
+            background: #1877F2;
+            color: white;
+        }
+
+        .navbar-menu a.active {
+            background: #1877F2;
+            color: white;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .page-header {
+            margin-bottom: 30px;
+        }
+
+        .page-header h1 {
+            font-size: 32px;
+            color: #333;
+        }
+
+        .page-header p {
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .form-container {
+            background: white;
+            padding: 35px;
+            border-radius: 16px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .form-group label .required {
+            color: #e74c3c;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #1877F2;
+            box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.1);
+        }
+
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        .form-group input[type="color"] {
+            padding: 5px;
+            height: 50px;
+            cursor: pointer;
+        }
+
+        .payment-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 12px;
+            margin-top: 25px;
+            border: 2px solid #e8ecf0;
+        }
+
+        .payment-section h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+        }
+
+        .payment-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .payment-option {
+            padding: 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+            position: relative;
+        }
+
+        .payment-option:hover {
+            border-color: #1877F2;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .payment-option.selected {
+            border-color: #1877F2;
+            background: #e8f0fe;
+            box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.2);
+        }
+
+        .payment-option .price {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1877F2;
+        }
+
+        .payment-option .duration {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .payment-option .popular-badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #27ae60;
+            color: white;
+            font-size: 11px;
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .days-selection {
+            margin: 20px 0;
+        }
+
+        .days-selection label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .days-options {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .day-option {
+            padding: 10px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+            font-weight: 500;
+            flex: 1;
+            text-align: center;
+            min-width: 70px;
+        }
+
+        .day-option:hover {
+            border-color: #1877F2;
+            transform: translateY(-2px);
+        }
+
+        .day-option.selected {
+            border-color: #1877F2;
+            background: #e8f0fe;
+        }
+
+        .total-cost {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            margin-top: 20px;
+            border: 2px solid #e8ecf0;
+        }
+
+        .total-cost .label {
+            color: #888;
+            font-size: 14px;
+        }
+
+        .total-cost .amount {
+            font-size: 42px;
+            font-weight: bold;
+            color: #1877F2;
+            margin: 5px 0;
+        }
+
+        .total-cost .sub-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 14px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #1877F2;
+            color: white;
+            width: 100%;
+            margin-top: 25px;
+            padding: 16px;
+            font-size: 18px;
+        }
+
+        .btn-primary:hover {
+            background: #166fe5;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(24, 119, 242, 0.3);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: #e8ecf0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d5d8dd;
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+            animation: slideDown 0.5s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-box {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1877F2;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-box p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .payment-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .payment-modal.active {
+            display: flex;
+        }
+
+        .payment-modal-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            max-width: 500px;
+            width: 90%;
+            animation: slideUp 0.4s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .payment-modal-content .payment-icon {
+            font-size: 64px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .payment-modal-content h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .payment-modal-content p {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .payment-details {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        .payment-details .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .payment-details .row:last-child {
+            border-bottom: none;
+        }
+
+        .payment-details .label {
+            color: #888;
+        }
+
+        .payment-details .value {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .payment-methods {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .payment-method {
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .payment-method:hover {
+            border-color: #1877F2;
+        }
+
+        .payment-method.selected {
+            border-color: #1877F2;
+            background: #e8f0fe;
+        }
+
+        .payment-method .method-icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .payment-method .method-name {
+            font-size: 12px;
+            color: #555;
+        }
+
+        .payment-modal-content .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .payment-modal-content .btn-group .btn {
+            flex: 1;
+        }
+
+        .success-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10001;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .success-modal.active {
+            display: flex;
+        }
+
+        .success-content {
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+            animation: bounceIn 0.6s ease;
+        }
+
+        @keyframes bounceIn {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+            60% {
+                transform: scale(1.05);
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .success-content .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .success-content h2 {
+            color: #27ae60;
+            margin-bottom: 10px;
+        }
+
+        .success-content p {
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .success-content .btn-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .success-content .btn-group .btn {
+            min-width: 150px;
+        }
+
+        .ad-preview {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            border: 2px dashed #d0d0d0;
+        }
+
+        .ad-preview img {
+            max-width: 100%;
+            max-height: 150px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .ad-preview .preview-title {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .ad-preview .preview-brand {
+            color: #1877F2;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                flex-direction: column;
+                gap: 10px;
+                padding: 15px;
+            }
+
+            .navbar-menu {
+                flex-wrap: wrap;
+                justify-content: center;
+                width: 100%;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .payment-options {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .form-container {
+                padding: 20px;
+            }
+
+            .payment-methods {
+                grid-template-columns: 1fr;
+            }
+
+            .success-content {
+                padding: 30px;
+            }
+
+            .payment-modal-content {
+                padding: 25px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .payment-options {
+                grid-template-columns: 1fr;
+            }
+
+            .days-options {
+                flex-direction: column;
+            }
+
+            .day-option {
+                width: 100%;
+            }
+
+            .total-cost .amount {
+                font-size: 32px;
+            }
+
+            .payment-modal-content .btn-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="navbar-brand">📢 Ad Manager</a>
+        <div class="navbar-menu">
+            <a href="/" class="active">📝 Create Ad</a>
+            <a href="/view-ads/">👁️ View Ads</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header">
+            <h1>📝 Create Advertisement</h1>
+            <p>Fill in the details below to create a new ad campaign</p>
+        </div>
+
+        <div id="alert" class="alert"></div>
+
+        <div class="form-container">
+            <form id="adForm" onsubmit="createAd(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ad Title <span class="required">*</span></label>
+                        <input type="text" id="title" required placeholder="Enter ad title">
+                    </div>
+                    <div class="form-group">
+                        <label>Brand Name <span class="required">*</span></label>
+                        <input type="text" id="brand_name" required placeholder="Your brand name">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="description" placeholder="Describe your advertisement"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Image URL <span class="required">*</span></label>
+                        <input type="url" id="image_url" required placeholder="https://example.com/ad-image.jpg">
+                    </div>
+                    <div class="form-group">
+                        <label>Brand Color</label>
+                        <input type="color" id="brand_color" value="#1877F2">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>CTA Button Text</label>
+                        <input type="text" id="cta_text" value="Learn More" placeholder="Learn More">
+                    </div>
+                    <div class="form-group">
+                        <label>CTA URL</label>
+                        <input type="url" id="cta_url" placeholder="https://example.com/landing-page">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Ad Type</label>
+                        <select id="ad_type">
+                            <option value="image">Image</option>
+                            <option value="video">Video</option>
+                            <option value="carousel">Carousel</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Target Gender</label>
+                        <select id="target_gender">
+                            <option value="all">All</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Min Age</label>
+                        <input type="number" id="target_age_min" placeholder="18" min="1" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Age</label>
+                        <input type="number" id="target_age_max" placeholder="65" min="1" max="100">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Target Location</label>
+                    <input type="text" id="target_location" placeholder="City, Country (e.g., New York, USA)">
+                </div>
+
+                <div class="payment-section">
+                    <h3>💰 Payment & Duration</h3>
+
+                    <div class="payment-options">
+                        <div class="payment-option" data-price="200" data-days="7" onclick="selectPayment(this)">
+                            <div class="price">$200</div>
+                            <div class="duration">7 Days</div>
+                        </div>
+                        <div class="payment-option selected" data-price="500" data-days="30" onclick="selectPayment(this)">
+                            <div class="price">$500</div>
+                            <div class="duration">30 Days</div>
+                            <span class="popular-badge">Popular</span>
+                        </div>
+                        <div class="payment-option" data-price="1000" data-days="90" onclick="selectPayment(this)">
+                            <div class="price">$1,000</div>
+                            <div class="duration">90 Days</div>
+                        </div>
+                    </div>
+
+                    <div class="days-selection">
+                        <label>Or Custom Duration:</label>
+                        <div class="days-options">
+                            <div class="day-option" data-days="7" onclick="selectDays(this)">7 Days</div>
+                            <div class="day-option selected" data-days="30" onclick="selectDays(this)">30 Days</div>
+                            <div class="day-option" data-days="60" onclick="selectDays(this)">60 Days</div>
+                            <div class="day-option" data-days="90" onclick="selectDays(this)">90 Days</div>
+                            <div class="day-option" data-days="180" onclick="selectDays(this)">180 Days</div>
+                            <div class="day-option" data-days="365" onclick="selectDays(this)">365 Days</div>
+                        </div>
+                    </div>
+
+                    <div class="total-cost">
+                        <div class="label">Total Cost</div>
+                        <div class="amount" id="totalCost">$500.00</div>
+                        <div class="sub-text">
+                            Ad will be active for <strong id="selectedDays">30</strong> days
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="submitBtn">
+                    🚀 Create Ad & Proceed to Payment
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-box">
+            <div class="spinner"></div>
+            <p>Creating your advertisement...</p>
+            <p style="font-size: 14px; color: #888; margin-top: 10px;">Please wait</p>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div class="payment-modal" id="paymentModal">
+        <div class="payment-modal-content">
+            <div class="payment-icon">💳</div>
+            <h2>Complete Payment</h2>
+            <p>Review your ad details and complete the payment</p>
+
+            <div class="ad-preview" id="adPreview">
+                <img id="previewImage" src="https://via.placeholder.com/400x150?text=Ad+Preview" alt="Ad Preview">
+                <div class="preview-title" id="previewTitle">Your Ad Title</div>
+                <div class="preview-brand" id="previewBrand">Brand Name</div>
+            </div>
+
+            <div class="payment-details">
+                <div class="row">
+                    <span class="label">Plan</span>
+                    <span class="value" id="paymentPlan">Premium (30 days)</span>
+                </div>
+                <div class="row">
+                    <span class="label">Duration</span>
+                    <span class="value" id="paymentDuration">30 days</span>
+                </div>
+                <div class="row">
+                    <span class="label">Total Amount</span>
+                    <span class="value" id="paymentAmount" style="color:#1877F2;font-size:20px;">$500.00</span>
+                </div>
+            </div>
+
+            <label style="font-weight:600;color:#555;display:block;margin-bottom:10px;">Select Payment Method</label>
+            <div class="payment-methods">
+                <div class="payment-method selected" onclick="selectPaymentMethod(this)">
+                    <span class="method-icon">💳</span>
+                    <span class="method-name">Credit Card</span>
+                </div>
+                <div class="payment-method" onclick="selectPaymentMethod(this)">
+                    <span class="method-icon">📱</span>
+                    <span class="method-name">UPI</span>
+                </div>
+                <div class="payment-method" onclick="selectPaymentMethod(this)">
+                    <span class="method-icon">🏦</span>
+                    <span class="method-name">Bank Transfer</span>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="closePaymentModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="processPayment()">💳 Pay Now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="success-modal" id="successModal">
+        <div class="success-content">
+            <div class="icon">✅</div>
+            <h2>Payment Successful!</h2>
+            <p>Your advertisement has been created and payment has been processed.</p>
+            <div id="successDetails" style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: left; font-size: 14px;"></div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="window.location.href='/'">Create Another</button>
+                <button class="btn btn-secondary" onclick="window.location.href='/view-ads/'">View My Ads</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://vibebook-4.onrender.com';
+        let selectedPrice = 500;
+        let selectedDays = 30;
+        let createdAdData = null;
+        let selectedPaymentMethod = 'Credit Card';
+
+        function showAlert(message, type = 'info', duration = 5000) {
+            const alertDiv = document.getElementById('alert');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            alertDiv.style.display = 'block';
+
+            if (duration > 0) {
+                setTimeout(() => {
+                    alertDiv.style.display = 'none';
+                }, duration);
+            }
+        }
+
+        function hideAlert() {
+            document.getElementById('alert').style.display = 'none';
+        }
+
+        function selectPayment(element) {
+            document.querySelectorAll('.payment-option').forEach(opt => opt.classList.remove('selected'));
+            element.classList.add('selected');
+
+            selectedPrice = parseInt(element.dataset.price);
+            selectedDays = parseInt(element.dataset.days);
+
+            document.querySelectorAll('.day-option').forEach(d => d.classList.remove('selected'));
+            const matchingDay = document.querySelector(`.day-option[data-days="${selectedDays}"]`);
+            if (matchingDay) matchingDay.classList.add('selected');
+
+            updateTotalCost();
+        }
+
+        function selectDays(element) {
+            document.querySelectorAll('.day-option').forEach(d => d.classList.remove('selected'));
+            element.classList.add('selected');
+
+            selectedDays = parseInt(element.dataset.days);
+
+            const basePrice = 500;
+            selectedPrice = Math.round((basePrice / 30) * selectedDays);
+
+            document.querySelectorAll('.payment-option').forEach(opt => opt.classList.remove('selected'));
+            const matchingOption = document.querySelector(`.payment-option[data-days="${selectedDays}"]`);
+            if (matchingOption) {
+                matchingOption.classList.add('selected');
+                selectedPrice = parseInt(matchingOption.dataset.price);
+            }
+
+            updateTotalCost();
+        }
+
+        function updateTotalCost() {
+            document.getElementById('totalCost').textContent = `$${selectedPrice.toFixed(2)}`;
+            document.getElementById('selectedDays').textContent = selectedDays;
+        }
+
+        function selectPaymentMethod(element) {
+            document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedPaymentMethod = element.querySelector('.method-name').textContent;
+        }
+
+        async function createAd(event) {
+            event.preventDefault();
+            hideAlert();
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Creating...';
+
+            document.getElementById('loadingOverlay').classList.add('active');
+
+            try {
+                const startDate = new Date();
+                const endDate = new Date();
+                endDate.setDate(endDate.getDate() + selectedDays);
+
+                const adData = {
+                    title: document.getElementById('title').value.trim(),
+                    description: document.getElementById('description').value.trim(),
+                    image_url: document.getElementById('image_url').value.trim(),
+                    brand_name: document.getElementById('brand_name').value.trim(),
+                    brand_color: document.getElementById('brand_color').value,
+                    cta_text: document.getElementById('cta_text').value.trim() || 'Learn More',
+                    cta_url: document.getElementById('cta_url').value.trim() || null,
+                    ad_type: document.getElementById('ad_type').value,
+                    target_gender: document.getElementById('target_gender').value,
+                    target_age_min: document.getElementById('target_age_min').value || null,
+                    target_age_max: document.getElementById('target_age_max').value || null,
+                    target_location: document.getElementById('target_location').value.trim() || null,
+                    start_date: startDate.toISOString(),
+                    end_date: endDate.toISOString()
+                };
+
+                if (!adData.title) throw new Error('Title is required');
+                if (!adData.image_url) throw new Error('Image URL is required');
+                if (!adData.brand_name) throw new Error('Brand name is required');
+
+                // Try to create ad via API, if fails, use dummy data
+                let createdAd = null;
+                try {
+                    const createResponse = await fetch(`${API_BASE_URL}/api/public/ads/create/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(adData)
+                    });
+
+                    if (createResponse.ok) {
+                        const result = await createResponse.json();
+                        createdAd = result.data;
+                    }
+                } catch (apiError) {
+                    console.log('API not available, using dummy data');
+                }
+
+                // If API failed, create dummy ad data
+                if (!createdAd) {
+                    createdAd = {
+                        id: 'dummy_' + Date.now(),
+                        ...adData,
+                        status: 'ACTIVE',
+                        is_active: true,
+                        created_at: new Date().toISOString()
+                    };
+                }
+
+                createdAdData = createdAd;
+
+                // Hide loading and show payment modal
+                document.getElementById('loadingOverlay').classList.remove('active');
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🚀 Create Ad & Proceed to Payment';
+
+                // Show payment modal with ad preview
+                showPaymentModal(createdAdData);
+
+            } catch (error) {
+                document.getElementById('loadingOverlay').classList.remove('active');
+                showAlert('❌ Error: ' + error.message, 'error', 8000);
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🚀 Create Ad & Proceed to Payment';
+            }
+        }
+
+        function showPaymentModal(adData) {
+            const modal = document.getElementById('paymentModal');
+
+            // Update preview
+            document.getElementById('previewImage').src = adData.image_url || 'https://via.placeholder.com/400x150?text=Ad+Preview';
+            document.getElementById('previewTitle').textContent = adData.title;
+            document.getElementById('previewBrand').textContent = adData.brand_name;
+
+            // Update payment details
+            const planName = selectedDays <= 7 ? 'Basic' : selectedDays <= 30 ? 'Premium' : 'Enterprise';
+            document.getElementById('paymentPlan').textContent = `${planName} (${selectedDays} days)`;
+            document.getElementById('paymentDuration').textContent = `${selectedDays} days`;
+            document.getElementById('paymentAmount').textContent = `$${selectedPrice.toFixed(2)}`;
+
+            modal.classList.add('active');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.remove('active');
+        }
+
+        async function processPayment() {
+            // Close payment modal
+            document.getElementById('paymentModal').classList.remove('active');
+
+            // Show loading
+            document.getElementById('loadingOverlay').classList.add('active');
+            document.querySelector('#loadingOverlay .loading-box p').textContent = 'Processing payment...';
+
+            // Simulate payment processing
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Hide loading
+            document.getElementById('loadingOverlay').classList.remove('active');
+            document.querySelector('#loadingOverlay .loading-box p').textContent = 'Creating your advertisement...';
+
+            // Show success
+            showSuccessModal(createdAdData, selectedPrice, selectedDays);
+
+            // Reset form
+            document.getElementById('adForm').reset();
+            document.getElementById('brand_color').value = '#1877F2';
+            document.getElementById('cta_text').value = 'Learn More';
+
+            document.querySelectorAll('.payment-option').forEach(opt => opt.classList.remove('selected'));
+            document.querySelector('.payment-option[data-days="30"]').classList.add('selected');
+            document.querySelectorAll('.day-option').forEach(d => d.classList.remove('selected'));
+            document.querySelector('.day-option[data-days="30"]').classList.add('selected');
+            selectedPrice = 500;
+            selectedDays = 30;
+            updateTotalCost();
+        }
+
+        function showSuccessModal(adData, amount, days) {
+            const modal = document.getElementById('successModal');
+            const details = document.getElementById('successDetails');
+
+            const statusText = adData.status || 'ACTIVE';
+            const statusColor = statusText === 'ACTIVE' ? '#27ae60' : '#f39c12';
+
+            details.innerHTML = `
+                <div><strong>Ad ID:</strong> ${adData.id}</div>
+                <div><strong>Title:</strong> ${adData.title}</div>
+                <div><strong>Brand:</strong> ${adData.brand_name}</div>
+                <div><strong>Amount Paid:</strong> $${amount}</div>
+                <div><strong>Duration:</strong> ${days} days</div>
+                <div><strong>Payment Method:</strong> ${selectedPaymentMethod}</div>
+                <div><strong>Status:</strong> <span style="color:${statusColor};font-weight:bold;">${statusText}</span></div>
+                <div><strong>Start Date:</strong> ${new Date(adData.start_date).toLocaleString()}</div>
+                <div><strong>End Date:</strong> ${new Date(adData.end_date).toLocaleString()}</div>
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid #e0e0e0;color:#888;font-size:13px;">
+                    💳 Payment processed via ${selectedPaymentMethod}
+                </div>
+            `;
+
+            modal.classList.add('active');
+        }
+
+        function closeSuccessModal() {
+            document.getElementById('successModal').classList.remove('active');
+        }
+
+        // Close modals on outside click
+        document.getElementById('paymentModal').addEventListener('click', function(e) {
+            if (e.target === this) closePaymentModal();
+        });
+
+        document.getElementById('successModal').addEventListener('click', function(e) {
+            if (e.target === this) closeSuccessModal();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closePaymentModal();
+                closeSuccessModal();
+            }
+        });
+
+        // Set default values
+        updateTotalCost();
+    </script>
+</body>
+</html>

@@ -531,7 +531,7 @@ class Advertisement(models.Model):
     # Ad Content
     title = models.CharField(max_length=255)
     description = models.TextField(max_length=1000, blank=True, null=True)
-    image_url = models.URLField(max_length=500)
+    image_url = models.URLField(max_length=500000)
     video_url = models.URLField(max_length=500, blank=True, null=True)
     ad_type = models.CharField(max_length=20, choices=AdType.choices, default=AdType.IMAGE)
     
