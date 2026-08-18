@@ -78,7 +78,8 @@ urlpatterns = [
     path('api/ads/click/<str:ad_id>/', views.TrackAdClickView.as_view(), name='track-ad-click'),
     path('api/ads/update/<str:ad_id>/', views.UpdateAdView.as_view(), name='update-ad'),
 
-    path('', views.create_ad_page, name='create_ad_page'),
+    path('create_ad_page/', views.create_ad_page, name='create_ad_page'),
+    path('', views.landing, name='landing'),
     path('view-ads/', views.view_ads_page, name='view_ads_page'),
 
     path('api/public/ads/create/', views.PublicCreateAdView.as_view(), name='public_create_ad'),

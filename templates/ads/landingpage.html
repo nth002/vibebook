@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeBook | Connect with your Vibe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        :root {
+            --primary-orange: #FF8C42;
+            --primary-green: #4CAF50;
+            --primary-gradient: linear-gradient(135deg, #FFC107 0%, #FF8C42 100%);
+            --secondary-gradient: linear-gradient(135deg, #a8e063 0%, #56ab2f 100%);
+            --bg-cream: #FDFBF7;
+            --text-dark: #111827;
+            --text-light: #6B7280;
+            --glass-bg: rgba(255, 255, 255, 0.18);
+            --glass-border: rgba(255, 255, 255, 0.25);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-cream);
+            color: var(--text-dark);
+            overflow-x: hidden;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        /* --- Animations --- */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-in {
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+        .delay-4 { animation-delay: 0.4s; }
+
+        /* --- Floating Background Shapes --- */
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: -1;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+        .blob-1 { top: -20%; left: -15%; width: 40vw; height: 40vw; background: #FFDAB9; }
+        .blob-2 { bottom: -20%; right: -15%; width: 45vw; height: 45vw; background: #D4EDDA; }
+
+        /* --- Navbar --- */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem 6%;
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            box-shadow: 0 4px 30px rgba(0,0,0,0.03);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary-orange);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+        .nav-logo span { color: var(--primary-green); }
+        .nav-logo i { font-size: 1.2rem; }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-dark);
+            font-weight: 500;
+            font-size: 0.85rem;
+            transition: color 0.3s ease;
+        }
+        .nav-links a:hover { color: var(--primary-orange); }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white;
+            padding: 0.6rem 1.4rem;
+            border-radius: 50px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            text-decoration: none;
+            display: inline-block;
+            box-shadow: 0 4px 14px rgba(255, 140, 66, 0.25);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(255, 140, 66, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-dark);
+            padding: 0.6rem 1.4rem;
+            border-radius: 50px;
+            border: 1px solid #E5E7EB;
+            font-weight: 500;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        .btn-outline:hover {
+            border-color: var(--primary-orange);
+            color: var(--primary-orange);
+            background: rgba(255, 140, 66, 0.05);
+        }
+
+        /* --- Hero Section --- */
+        .hero {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4rem 6%;
+            min-height: 85vh;
+            position: relative;
+            gap: 4rem;
+        }
+
+        .hero-content {
+            flex: 1;
+            max-width: 480px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(10px);
+            color: var(--primary-green);
+            padding: 0.4rem 0.8rem;
+            border-radius: 50px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(76, 175, 80, 0.15);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+        }
+        .hero-badge i { font-size: 0.8rem; }
+
+        .hero h1 {
+            font-size: 2.6rem;
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 1.2rem;
+            letter-spacing: -1.5px;
+        }
+        .hero h1 span.gradient-text {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero h1 span.green-text { color: var(--primary-green); }
+
+        .hero p {
+            font-size: 0.95rem;
+            color: var(--text-light);
+            margin-bottom: 2rem;
+            max-width: 90%;
+            font-weight: 400;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(229, 231, 235, 0.5);
+        }
+        .stat-item h3 { font-size: 1.4rem; font-weight: 700; color: var(--text-dark); letter-spacing: -0.5px; }
+        .stat-item p { font-size: 0.75rem; margin-bottom: 0; color: var(--text-light); font-weight: 500; }
+
+        /* --- Hero Mockup (Phone) --- */
+        .hero-mockup {
+            flex: 1;
+            display: flex;
+            justify-content: flex-end;
+            position: relative;
+        }
+
+        .phone-frame {
+            width: 280px;
+            height: 560px;
+            background: #1a1a1a;
+            border-radius: 40px;
+            padding: 8px;
+            box-shadow: 0 35px 80px rgba(0,0,0,0.15), 0 10px 30px rgba(0,0,0,0.05);
+            position: relative;
+        }
+
+        .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: #F8FAFC;
+            border-radius: 32px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Notch */
+        .notch {
+            width: 100px;
+            height: 24px;
+            background: #1a1a1a;
+            border-radius: 0 0 16px 16px;
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        /* Simulated App UI */
+        .app-header {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 16px 16px 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #F1F5F9;
+            margin-top: 20px;
+        }
+        .app-logo { font-weight: 700; color: var(--primary-orange); font-size: 0.85rem; }
+        .app-icons { display: flex; gap: 12px; color: var(--text-light); font-size: 0.8rem; }
+
+        .app-feed {
+            padding: 12px;
+            overflow-y: auto;
+            flex: 1;
+            background: #F8FAFC;
+        }
+        .app-post {
+            background: white;
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            border: 1px solid rgba(0,0,0,0.02);
+        }
+        .post-user { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .post-avatar { width: 28px; height: 28px; border-radius: 50%; background: #E2E8F0; }
+        .post-name { font-weight: 600; font-size: 0.75rem; }
+        .post-time { font-size: 0.6rem; color: var(--text-light); }
+        .post-image { width: 100%; height: 110px; background: #E2E8F0; border-radius: 10px; margin: 8px 0; }
+        .post-text { font-size: 0.75rem; color: var(--text-dark); margin-bottom: 8px; }
+        .post-interact { display: flex; justify-content: space-around; border-top: 1px solid #F1F5F9; padding-top: 8px; color: var(--text-light); font-size: 0.65rem; }
+
+        /* VibeMatch Card */
+        .app-vibe {
+            background: linear-gradient(135deg, #FFF7ED, #FFFBEB);
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 140, 66, 0.1);
+        }
+        .vibe-info h4 { font-size: 0.75rem; color: var(--text-dark); font-weight: 700; }
+        .vibe-info p { font-size: 0.6rem; color: var(--text-light); }
+        .vibe-btn { background: white; padding: 4px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.02); border: 1px solid #E2E8F0; }
+
+        /* --- NEW: Ads / Monetization Section --- */
+        .ads-section {
+            padding: 3rem 6%;
+            background: #0F172A; /* Deep dark premium bg */
+            background-image: radial-gradient(circle at 10% 20%, rgba(255, 140, 66, 0.1) 0%, transparent 40%);
+            color: #F8FAFC;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            border-radius: 40px 40px 0 0;
+            margin-top: -30px;
+            position: relative;
+            z-index: 1;
+            box-shadow: 0 -20px 40px rgba(0,0,0,0.02);
+        }
+        .ads-content {
+            max-width: 700px;
+            margin-bottom: 2rem;
+        }
+        .ads-content h2 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0.8rem;
+            letter-spacing: -0.5px;
+        }
+        .ads-content p {
+            font-size: 0.95rem;
+            color: #94A3B8;
+        }
+        .ads-buttons {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn-glow {
+            background: white;
+            color: #0F172A;
+            padding: 0.8rem 2.2rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .btn-glow:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(255, 255, 255, 0.2);
+        }
+        .btn-glow-orange {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: 0 4px 20px rgba(255, 140, 66, 0.3);
+            border: 1px solid rgba(255, 140, 66, 0.5);
+        }
+        .btn-glow-orange:hover {
+            box-shadow: 0 10px 30px rgba(255, 140, 66, 0.4);
+        }
+
+        /* --- Features Section --- */
+        .features {
+            padding: 4rem 6%;
+            background: white;
+            border-radius: 40px 40px 0 0;
+            margin-top: 0px;
+            position: relative;
+            z-index: 1;
+        }
+        .section-header { text-align: center; margin-bottom: 3rem; }
+        .section-header h2 { font-size: 1.8rem; font-weight: 700; margin-bottom: 0.8rem; letter-spacing: -0.5px; }
+        .section-header p { color: var(--text-light); max-width: 500px; margin: 0 auto; font-size: 0.9rem; }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+        }
+        .feature-card {
+            padding: 1.5rem;
+            border-radius: 16px;
+            background: #F8FAFC;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            border: 1px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,1), rgba(255,255,255,0.5));
+            opacity: 0;
+            transition: opacity 0.4s;
+            pointer-events: none;
+        }
+        .feature-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(255, 140, 66, 0.2);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.04);
+            background: white;
+        }
+        .feature-card:hover::before { opacity: 1; }
+        
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 1;
+        }
+        .icon-orange { background: rgba(255, 140, 66, 0.1); color: var(--primary-orange); }
+        .icon-green { background: rgba(76, 175, 80, 0.1); color: var(--primary-green); }
+        .icon-blue { background: rgba(59, 130, 246, 0.1); color: #3B82F6; }
+        .icon-purple { background: rgba(168, 85, 247, 0.1); color: #A855F7; }
+
+        .feature-card h3 { font-size: 1rem; margin-bottom: 0.4rem; position: relative; z-index: 1; }
+        .feature-card p { color: var(--text-light); font-size: 0.8rem; position: relative; z-index: 1; }
+
+        /* --- Footer --- */
+        footer {
+            padding: 3rem 6%;
+            text-align: center;
+            border-top: 1px solid #F1F5F9;
+            background: white;
+        }
+        footer .nav-logo { justify-content: center; margin-bottom: 1.2rem; }
+        footer p { color: var(--text-light); font-size: 0.75rem; }
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin: 1.2rem 0;
+        }
+        .footer-links a { color: var(--text-light); text-decoration: none; font-size: 0.8rem; transition: color 0.3s; }
+        .footer-links a:hover { color: var(--primary-orange); }
+
+        /* --- Responsive --- */
+        @media (max-width: 1024px) {
+            .hero { gap: 2rem; flex-direction: column-reverse; text-align: center; padding: 2rem 5%; }
+            .hero-content { max-width: 100%; display: flex; flex-direction: column; align-items: center; }
+            .hero h1 { font-size: 2.4rem; }
+            .hero p { max-width: 100%; }
+            .hero-stats { justify-content: center; width: 100%; }
+            .hero-mockup { justify-content: center; }
+            .phone-frame { width: 260px; height: 520px; }
+            .nav-links { display: none; }
+            nav .fa-bars { display: block !important; }
+        }
+        @media (max-width: 480px) {
+            body { font-size: 13px; }
+            .hero h1 { font-size: 2rem; }
+            .hero-buttons { flex-direction: column; width: 100%; }
+            .hero-buttons a { width: 100%; text-align: center; }
+            .phone-frame { width: 220px; height: 460px; }
+            .features-grid { grid-template-columns: 1fr; }
+            .features, .ads-section { padding: 3rem 5%; }
+            .ads-buttons { flex-direction: column; width: 100%; }
+            .btn-glow { width: 100%; text-align: center; }
+            .footer-links { flex-wrap: wrap; gap: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background Elements -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <!-- Navbar -->
+    <nav>
+        <a href="#" class="nav-logo animate-in">
+            <i class="fa-solid fa-book-open"></i> Vibe<span>Book</span>
+        </a>
+        <div class="nav-links animate-in delay-1">
+            <a href="#">Home</a>
+            <a href="#">Features</a>
+            <a href="/create_ad_page/">Run Your Ads</a> <!-- Added link -->
+            
+        </div>
+        <i class="fa-solid fa-bars" style="font-size: 1.2rem; color: var(--text-dark); display: none; cursor: pointer;"></i>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content animate-in delay-1">
+            <div class="hero-badge">
+                <i class="fa-solid fa-indian-rupee-sign"></i> Made in India, For the World
+            </div>
+            <h1>Connect with your <span class="gradient-text">Vibe</span>, <br> <span class="green-text">Create</span> Community.</h1>
+            <p>Where social meets matchmaking, and memes meet moments. Join VibeBook to chat, date, and connect with people who share your exact energy.</p>
+            
+            <div class="hero-buttons">
+                <a href="#" class="btn-primary" style="padding: 0.8rem 2rem;">
+                    <i class="fa-brands fa-apple"></i> App Store
+                </a>
+                <a href="#" class="btn-primary" style="padding: 0.8rem 2rem; background: #111827; box-shadow: 0 4px 14px rgba(17, 24, 39, 0.25);">
+                    <i class="fa-brands fa-google-play"></i> Google Play
+                </a>
+            </div>
+
+            <div class="hero-stats">
+                <div class="stat-item">
+                    <h3>50K+</h3>
+                    <p>Active Vibes</p>
+                </div>
+                <div class="stat-item">
+                    <h3>4.9</h3>
+                    <p>Avg. Rating</p>
+                </div>
+                <div class="stat-item">
+                    <h3>100%</h3>
+                    <p>Secure Platform</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="hero-mockup animate-in delay-2">
+            <div class="phone-frame">
+                <div class="notch"></div>
+                <div class="phone-screen">
+                    <div class="app-header">
+                        <div class="app-logo"><i class="fa-solid fa-book-open" style="margin-right: 4px;"></i> VibeBook</div>
+                        <div class="app-icons">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <i class="fa-solid fa-bell" style="color: #FF8C42;"></i>
+                        </div>
+                    </div>
+                    <div class="app-feed">
+                        <div class="app-vibe">
+                            <div class="vibe-info">
+                                <h4>❤️ VibeMatch</h4>
+                                <p>Ananya Singh • 24</p>
+                            </div>
+                            <div class="vibe-btn" style="color: #FF8C42;">94% Match</div>
+                        </div>
+                        <div class="app-post">
+                            <div class="post-user">
+                                <div class="post-avatar" style="background: url('https://ui-avatars.com/api/?name=Jagannath+Bhanja&background=4CAF50&color=fff'); background-size: cover;"></div>
+                                <div>
+                                    <div class="post-name">Jagannath Bhanja</div>
+                                    <div class="post-time">2h ago</div>
+                                </div>
+                            </div>
+                            <div class="post-text">Living room setup coming together! 🎮</div>
+                            <div class="post-image" style="background: url('https://images.unsplash.com/photo-1593642702821-c8da6771f0c6?auto=format&fit=crop&w=500&q=80'); background-size: cover;"></div>
+                            <div class="post-interact">
+                                <span><i class="fa-regular fa-thumbs-up"></i> 124</span>
+                                <span><i class="fa-regular fa-comment"></i> 23</span>
+                                <span><i class="fa-solid fa-share-nodes"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW: Ads / Monetization Section -->
+    <section class="ads-section animate-in delay-3">
+        <div class="ads-content">
+            <h2>🚀 Reach Millions with VibeBook Ads</h2>
+            <p>Grow your business, promote your brand, or run campaigns. Our smart algorithm connects you to the right audience instantly.</p>
+        </div>
+        <div class="ads-buttons">
+            <a href="/create_ad_page/" class="btn-glow btn-glow-orange">
+                <i class="fa-solid fa-rocket"></i> Run Your Ads
+            </a>
+            <a href="/view-ads/" class="btn-glow">
+                <i class="fa-solid fa-chart-line"></i> View Your Ads
+            </a>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="section-header animate-in delay-4">
+            <h2>Everything you need in <span style="color: #FF8C42;">one</span> place</h2>
+            <p>From intimate chats to viral memes and meaningful dating, VibeBook redefines how you connect online.</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card animate-in delay-4">
+                <div class="feature-icon icon-orange"><i class="fa-solid fa-heart"></i></div>
+                <h3>VibeMatch Dating</h3>
+                <p>Smart matching based on moods, interests, and vibes.</p>
+            </div>
+            <div class="feature-card animate-in delay-4">
+                <div class="feature-icon icon-green"><i class="fa-solid fa-face-laugh"></i></div>
+                <h3>Meme & Gaming Hub</h3>
+                <p>Share memes, earn coins, and connect with gamers.</p>
+            </div>
+            <div class="feature-card animate-in delay-4">
+                <div class="feature-icon icon-blue"><i class="fa-solid fa-bolt"></i></div>
+                <h3>AI Assistant</h3>
+                <p>An AI friend to help with posts, suggestions, and chats.</p>
+            </div>
+            <div class="feature-card animate-in delay-4">
+                <div class="feature-icon icon-purple"><i class="fa-solid fa-shield-halved"></i></div>
+                <h3>Privacy First</h3>
+                <p>Verified profiles built on trust and respect.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <a href="#" class="nav-logo">
+            <i class="fa-solid fa-book-open"></i> Vibe<span>Book</span>
+        </a>
+        <div class="footer-links">
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+            <a href="#">Advertise with Us</a> <!-- Added link -->
+            <a href="#">Careers</a>
+        </div>
+        <p>© 2026 VibeBook. Made with <i class="fa-solid fa-heart" style="color: #FF8C42;"></i> in India 🇮🇳</p>
+    </footer>
+
+</body>
+</html>

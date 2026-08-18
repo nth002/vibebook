@@ -40,6 +40,10 @@ def view_ads_page(request):
     """Render view ads page"""
     return render(request, 'ads/view_ads.html')
 
+def landing(request):
+    """Render view ads page"""
+    return render(request, 'ads/landingpage.html')
+
 
 
 
