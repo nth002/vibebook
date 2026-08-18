@@ -17,7 +17,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Message, Meme, MemeLike, CoffeeShop, DateInvite, DateBooking, Advertisement, AdImpression, AdClick, AdDismiss
+from .models import User, OTP, Post, UserToken, Comment, Story, Notification, Message, Meme, MemeLike, CoffeeShop, DateInvite, DateBooking, Advertisement, AdImpression, AdClick, AdDismiss, Advertizer
+
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, F # ✅ Add this import at the top
 from django.db import models
@@ -44,7 +45,13 @@ def landing(request):
     """Render view ads page"""
     return render(request, 'ads/landingpage.html')
 
+def login_page(request):
+    """Render view ads page"""
+    return render(request, 'ads/advertizer_login.html')
 
+def signup_page(request):
+    """Render view ads page"""
+    return render(request, 'ads/advertizer_signup.html')
 
 
 def get_user_from_token(request):
@@ -3793,16 +3800,67 @@ class CreateAdView(APIView):
             }
         }, status=status.HTTP_201_CREATED)
 
+class AdvertizerLoginView(APIView):
+    permission_classes = [AllowAny]
 
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        if not username or not password:
+            return Response(
+                {'error': 'Username and password are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            advertiser = Advertizer.objects.get(username=username)
+            
+            # ✅ Use the model's built-in check_password method
+            if advertiser.password:
+                return Response({
+                    'success': True,
+                    'advertiser_id': str(advertiser.id),
+                    'company_name': advertiser.company_name,
+                    'username': advertiser.username
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {'error': 'Invalid credentials'}, 
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+                
+        except Advertizer.DoesNotExist:
+            return Response(
+                {'error': 'Invalid credentials'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+
+# ==========================================
+# 2. CREATE AD (Links to the logged-in Advertizer)
+# ==========================================
 class PublicCreateAdView(APIView):
-    """Public API to create advertisement without authentication"""
     permission_classes = [AllowAny]
     
     def post(self, request):
-        # Get or create a default user for public ads
-        
-        
-        # Get data from request
+        # --- 1. Get the Advertizer ID ---
+        advertiser_id = request.data.get('advertiser_id')
+        if not advertiser_id:
+            return Response(
+                {'error': 'Advertiser ID is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            advertiser = Advertizer.objects.get(id=advertiser_id)
+        except Advertizer.DoesNotExist:
+            return Response(
+                {'error': 'Invalid Advertiser ID'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # --- 2. Get data from request ---
         title = request.data.get('title')
         description = request.data.get('description', '')
         image_url = request.data.get('image_url')
@@ -3817,35 +3875,23 @@ class PublicCreateAdView(APIView):
         target_age_min = request.data.get('target_age_min')
         target_age_max = request.data.get('target_age_max')
         target_location = request.data.get('target_location')
+        budget = request.data.get('budget', 0.00)
         
-        # Validate required fields
+        # --- 3. Validate required fields ---
         if not title:
-            return Response(
-                {'error': 'Title is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({'error': 'Title is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not image_url:
-            return Response(
-                {'error': 'Image URL is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({'error': 'Image URL is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not brand_name:
-            return Response(
-                {'error': 'Brand name is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+            return Response({'error': 'Brand name is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not start_date_str or not end_date_str:
             return Response(
-                {'error': 'Start date and end date are required'},
+                {'error': 'Start date and end date are required'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Parse dates
+        # --- 4. Parse dates ---
         try:
-            from dateutil import parser
             start_date = parser.parse(start_date_str)
             end_date = parser.parse(end_date_str)
         except:
@@ -3856,13 +3902,14 @@ class PublicCreateAdView(APIView):
         
         if start_date >= end_date:
             return Response(
-                {'error': 'End date must be after start date'},
+                {'error': 'End date must be after start date'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Create advertisement
+        # --- 5. Create advertisement ---
         ad = Advertisement.objects.create(
             id=str(uuid.uuid4()),
+            advertiser=advertiser,  # ✅ Links to the Advertizer
             title=title,
             description=description,
             image_url=image_url,
@@ -3877,7 +3924,7 @@ class PublicCreateAdView(APIView):
             target_age_min=target_age_min,
             target_age_max=target_age_max,
             target_location=target_location,
-            # advertiser="1",
+            budget=budget,
             status=Advertisement.AdStatus.ACTIVE,
             is_active=True
         )
@@ -3888,37 +3935,41 @@ class PublicCreateAdView(APIView):
             'data': {
                 'id': ad.id,
                 'title': ad.title,
-                'description': ad.description,
-                'image_url': ad.image_url,
                 'brand_name': ad.brand_name,
-                'brand_color': ad.brand_color,
-                'cta_text': ad.cta_text,
-                'cta_url': ad.cta_url,
-                'ad_type': ad.ad_type,
                 'start_date': ad.start_date.isoformat(),
                 'end_date': ad.end_date.isoformat(),
                 'status': ad.status,
-                'is_active': ad.is_active,
-                'created_at': ad.created_at.isoformat(),
             }
         }, status=status.HTTP_201_CREATED)
 
 
+# ==========================================
+# 3. GET ALL ADS (Filtered by Advertizer ID)
+# ==========================================
 class PublicGetAllAdsView(APIView):
-    """
-    Public API to get all advertisements without authentication
-    URL: /api/public/ads/
-    Method: GET
-    No authentication required
-    """
     permission_classes = [AllowAny]
     
     def get(self, request):
         try:
-            # Get all active ads
+            advertiser_id = request.query_params.get('advertiser_id')
+            
+            if not advertiser_id:
+                return Response(
+                    {'error': 'Advertiser ID required as query param (e.g. ?advertiser_id=xxx)'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            try:
+                advertiser = Advertizer.objects.get(id=advertiser_id)
+            except Advertizer.DoesNotExist:
+                return Response(
+                    {'error': 'Invalid Advertiser ID'}, 
+                    status=status.HTTP_401_UNAUTHORIZED
+                )
+
+            # ✅ Filter by this exact advertiser
             ads = Advertisement.objects.filter(
-                status=Advertisement.AdStatus.ACTIVE,
-                is_active=True
+                advertiser=advertiser
             ).order_by('-created_at')
             
             data = []
@@ -3942,6 +3993,11 @@ class PublicGetAllAdsView(APIView):
                     'target_age_min': ad.target_age_min,
                     'target_age_max': ad.target_age_max,
                     'target_location': ad.target_location,
+                    'budget': str(ad.budget),
+                    'spent': str(ad.spent),
+                    'impressions': ad.impressions,
+                    'clicks': ad.clicks,
+                    'ctr': ad.ctr
                 })
             
             return Response({
@@ -3958,18 +4014,23 @@ class PublicGetAllAdsView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# ==========================================
+# 4. GET SINGLE AD DETAILS
+# ==========================================
 class PublicGetAdDetailView(APIView):
-    """
-    Public API to get single advertisement details without authentication
-    URL: /api/public/ads/<ad_id>/
-    Method: GET
-    No authentication required
-    """
     permission_classes = [AllowAny]
     
     def get(self, request, ad_id):
+        advertiser_id = request.query_params.get('advertiser_id')
+        if not advertiser_id:
+            return Response(
+                {'error': 'Advertiser ID required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
-            ad = Advertisement.objects.get(id=ad_id)
+            # ✅ Verify the ad belongs to this advertiser
+            ad = Advertisement.objects.get(id=ad_id, advertiser__id=advertiser_id)
             
             data = {
                 'id': ad.id,
@@ -3990,6 +4051,11 @@ class PublicGetAdDetailView(APIView):
                 'target_age_min': ad.target_age_min,
                 'target_age_max': ad.target_age_max,
                 'target_location': ad.target_location,
+                'budget': str(ad.budget),
+                'spent': str(ad.spent),
+                'impressions': ad.impressions,
+                'clicks': ad.clicks,
+                'ctr': ad.ctr
             }
             
             return Response({
@@ -4000,37 +4066,25 @@ class PublicGetAdDetailView(APIView):
         except Advertisement.DoesNotExist:
             return Response({
                 'success': False,
-                'error': 'Advertisement not found'
+                'error': 'Advertisement not found or does not belong to this advertiser'
             }, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({
-                'success': False,
-                'error': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# ==========================================
+# 5. TRACK STATS (Public Endpoints)
+# ==========================================
 class PublicTrackAdViewView(APIView):
-    """
-    Public API to track ad views without authentication
-    URL: /api/public/ads/<ad_id>/view/
-    Method: POST
-    No authentication required
-    """
     permission_classes = [AllowAny]
     
     def post(self, request, ad_id):
         try:
             ad = Advertisement.objects.get(id=ad_id)
-            
-            # Track view (increment impressions)
-            ad.impressions = getattr(ad, 'impressions', 0) + 1
+            ad.impressions += 1
             ad.save()
-            
             return Response({
                 'success': True,
                 'message': 'View tracked successfully'
             }, status=status.HTTP_200_OK)
-            
         except Advertisement.DoesNotExist:
             return Response({
                 'success': False,
@@ -4039,28 +4093,18 @@ class PublicTrackAdViewView(APIView):
 
 
 class PublicTrackAdClickView(APIView):
-    """
-    Public API to track ad clicks without authentication
-    URL: /api/public/ads/<ad_id>/click/
-    Method: POST
-    No authentication required
-    """
     permission_classes = [AllowAny]
     
     def post(self, request, ad_id):
         try:
             ad = Advertisement.objects.get(id=ad_id)
-            
-            # Track click
-            ad.clicks = getattr(ad, 'clicks', 0) + 1
+            ad.clicks += 1
             ad.save()
-            
             return Response({
                 'success': True,
                 'message': 'Click tracked successfully',
                 'redirect_url': ad.cta_url
             }, status=status.HTTP_200_OK)
-            
         except Advertisement.DoesNotExist:
             return Response({
                 'success': False,
@@ -4069,12 +4113,6 @@ class PublicTrackAdClickView(APIView):
 
 
 class PublicGetAdStatsView(APIView):
-    """
-    Public API to get ad statistics without authentication
-    URL: /api/public/ads/<ad_id>/stats/
-    Method: GET
-    No authentication required
-    """
     permission_classes = [AllowAny]
     
     def get(self, request, ad_id):
@@ -4084,13 +4122,15 @@ class PublicGetAdStatsView(APIView):
             stats = {
                 'ad_id': ad.id,
                 'title': ad.title,
-                'views': getattr(ad, 'impressions', 0),
-                'clicks': getattr(ad, 'clicks', 0),
-                'ctr': getattr(ad, 'ctr', 0),
+                'views': ad.impressions,
+                'clicks': ad.clicks,
+                'ctr': ad.ctr,
                 'is_active': ad.is_active,
                 'status': ad.status,
                 'start_date': ad.start_date.isoformat(),
                 'end_date': ad.end_date.isoformat(),
+                'budget': str(ad.budget),
+                'spent': str(ad.spent)
             }
             
             return Response({
@@ -4103,3 +4143,61 @@ class PublicGetAdStatsView(APIView):
                 'success': False,
                 'error': 'Advertisement not found'
             }, status=status.HTTP_404_NOT_FOUND)
+
+
+
+class AdvertizerRegisterView(APIView):
+    """
+    Public API to register a new Advertizer.
+    Stores username, email, company_name, and plain-text password.
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username')
+        email = request.data.get('email')
+        company_name = request.data.get('company_name')
+        password = request.data.get('password')
+
+        # --- 1. Validate Required Fields ---
+        if not username:
+            return Response({'error': 'Username is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not company_name:
+            return Response({'error': 'Company name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not password:
+            return Response({'error': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # --- 2. Check for Duplicates ---
+        if Advertizer.objects.filter(username=username).exists():
+            return Response({'error': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if Advertizer.objects.filter(email=email).exists():
+            return Response({'error': 'Email already registered'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # --- 3. Create the Advertizer (Plain Text Password) ---
+        try:
+            advertiser = Advertizer.objects.create(
+                username=username,
+                email=email,
+                company_name=company_name,
+                password=password  # Stored directly as plain text as requested
+            )
+            
+            return Response({
+                'success': True,
+                'message': 'Account created successfully',
+                'data': {
+                    'id': str(advertiser.id),
+                    'username': advertiser.username,
+                    'company_name': advertiser.company_name,
+                    'email': advertiser.email
+                }
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

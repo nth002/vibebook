@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advertizer Sign Up | VibeBook</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-orange: #FF8C42;
+            --primary-green: #4CAF50;
+            --primary-gradient: linear-gradient(135deg, #FFC107 0%, #FF8C42 100%);
+            --bg-cream: #FDFBF7;
+            --text-dark: #111827;
+            --text-light: #6B7280;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-cream);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        /* --- Background Blobs --- */
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: -1;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+        .blob-1 { top: -20%; left: -20%; width: 50vw; height: 50vw; background: #FFDAB9; }
+        .blob-2 { bottom: -20%; right: -20%; width: 50vw; height: 50vw; background: #D4EDDA; }
+
+        /* --- Card --- */
+        .signup-container {
+            width: 100%;
+            max-width: 520px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            padding: 48px 40px;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.06);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .brand-logo {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--primary-orange);
+            text-decoration: none;
+            margin-bottom: 8px;
+        }
+        .brand-logo span { color: var(--primary-green); }
+
+        .signup-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .signup-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-dark);
+            letter-spacing: -0.5px;
+            margin-bottom: 4px;
+        }
+        .signup-header p {
+            color: var(--text-light);
+            font-size: 13px;
+        }
+
+        /* --- Form Elements --- */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: var(--text-dark);
+            font-size: 13px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            background: white;
+            border: 1px solid #E2E8F0;
+            border-radius: 12px;
+            font-size: 14px;
+            color: var(--text-dark);
+            transition: all 0.3s ease;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-orange);
+            box-shadow: 0 0 0 4px rgba(255, 140, 66, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        /* --- Alert --- */
+        #alert {
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        #alert.error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; display: block; }
+        #alert.success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; display: block; }
+
+        /* --- Buttons --- */
+        .btn-primary {
+            width: 100%;
+            background: var(--primary-gradient);
+            color: white;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 4px 14px rgba(255, 140, 66, 0.25);
+            margin-top: 8px;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(255, 140, 66, 0.4); }
+        .btn-primary:disabled { background: #d1d5db; cursor: not-allowed; box-shadow: none; transform: none; }
+
+        .btn-secondary {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: var(--text-light);
+            font-size: 13px;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        .btn-secondary:hover { color: var(--primary-orange); }
+
+        /* --- Loader --- */
+        .loader {
+            display: none;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary-orange);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* --- Responsive --- */
+        @media (max-width: 480px) {
+            .signup-container { padding: 32px 24px; }
+            .form-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="signup-container">
+        <div class="brand-logo">
+            <i class="fa-solid fa-book-open"></i> Vibe<span>Book</span>
+        </div>
+
+        <div class="signup-header">
+            <h1>Create Advertizer Account</h1>
+            <p>Start managing your ad campaigns today.</p>
+        </div>
+
+        <div id="alert"></div>
+
+        <form id="signupForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Choose a username" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="company_name">Company Name</label>
+                    <input type="text" id="company_name" placeholder="Your brand/company name" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" placeholder="Enter your email" required autocomplete="off">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" placeholder="Create a password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password">Confirm Password</label>
+                <input type="password" id="confirm_password" placeholder="Confirm your password" required>
+            </div>
+
+            <button type="submit" class="btn-primary" id="submitBtn">
+                <span id="btnText">Create Account</span>
+                <div class="loader" id="btnLoader"></div>
+            </button>
+
+            <a href="/advertizer/login-page/" class="btn-secondary">
+                Already have an account? <strong style="color: var(--primary-orange);">Log In</strong>
+            </a>
+        </form>
+    </div>
+
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <script>
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        const API_BASE_URL = 'https://vibebook-4.onrender.com';
+        // const API_BASE_URL = 'http://127.0.0.1:8000';
+
+        const signupForm = document.getElementById('signupForm');
+        const alertBox = document.getElementById('alert');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const btnLoader = document.getElementById('btnLoader');
+
+        function showAlert(message, type = 'error') {
+            alertBox.className = type;
+            alertBox.textContent = message;
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                submitBtn.disabled = true;
+                btnText.style.display = 'none';
+                btnLoader.style.display = 'block';
+            } else {
+                submitBtn.disabled = false;
+                btnText.style.display = 'inline';
+                btnLoader.style.display = 'none';
+            }
+        }
+
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            showAlert('', ''); // Clear previous alerts
+            setLoading(true);
+
+            // === Get Values ===
+            const username = document.getElementById('username').value.trim();
+            const company_name = document.getElementById('company_name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const confirm_password = document.getElementById('confirm_password').value;
+
+            // === Validations ===
+            if (!username || !company_name || !email || !password || !confirm_password) {
+                showAlert('Please fill in all fields.', 'error');
+                setLoading(false);
+                return;
+            }
+
+            if (password !== confirm_password) {
+                showAlert('Passwords do not match.', 'error');
+                setLoading(false);
+                return;
+            }
+
+            try {
+                // === Send Data to Backend ===
+                // Note: In your backend, you need to add a public registration endpoint. 
+                // For now, we're sending it to the generic 'create' endpoint.
+                // If you create a dedicated endpoint like /api/advertizer/register/, change the URL below.
+                const response = await fetch(`${API_BASE_URL}/api/advertizer/register/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        company_name: company_name,
+                        email: email,
+                        password: password,
+                        
+                        // Dummy required fields for the create endpoint (to pass validations)
+                        title: "Welcome " + username,
+                        image_url: "https://via.placeholder.com/400",
+                        brand_name: company_name,
+                        start_date: new Date().toISOString(),
+                        end_date: new Date(Date.now() + 86400000).toISOString() // 1 day later
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('Account created successfully! Redirecting to login...', 'success');
+                    
+                    setTimeout(() => {
+                        window.location.href = '/advertizer/login-page/';
+                    }, 1500);
+
+                } else {
+                    // Parse specific Django error messages
+                    let errorMsg = data.error || 'Registration failed.';
+                    if (data.username) errorMsg = 'Username already exists.';
+                    if (data.email) errorMsg = 'Email already registered.';
+                    
+                    showAlert(errorMsg, 'error');
+                    setLoading(false);
+                }
+
+            } catch (error) {
+                console.error('Signup Error:', error);
+                showAlert('Network error. Please check your server connection.', 'error');
+                setLoading(false);
+            }
+        });
+    </script>
+</body>
+</html>

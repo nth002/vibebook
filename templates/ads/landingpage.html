@@ -104,7 +104,26 @@
         }
         .nav-links a:hover { color: var(--primary-orange); }
 
-        .btn-primary {
+        /* --- Split Buttons for Login & Sign Up --- */
+        .btn-nav-login {
+            background: transparent;
+            color: var(--text-dark);
+            padding: 0.6rem 1.4rem;
+            border-radius: 50px;
+            border: 1px solid #E5E7EB;
+            font-weight: 500;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        .btn-nav-login:hover {
+            border-color: var(--primary-orange);
+            color: var(--primary-orange);
+            background: rgba(255, 140, 66, 0.05);
+        }
+
+        .btn-nav-signup {
             background: var(--primary-gradient);
             color: white;
             padding: 0.6rem 1.4rem;
@@ -118,27 +137,9 @@
             display: inline-block;
             box-shadow: 0 4px 14px rgba(255, 140, 66, 0.25);
         }
-        .btn-primary:hover {
+        .btn-nav-signup:hover {
             transform: translateY(-2px) scale(1.02);
             box-shadow: 0 8px 25px rgba(255, 140, 66, 0.4);
-        }
-
-        .btn-outline {
-            background: transparent;
-            color: var(--text-dark);
-            padding: 0.6rem 1.4rem;
-            border-radius: 50px;
-            border: 1px solid #E5E7EB;
-            font-weight: 500;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-        }
-        .btn-outline:hover {
-            border-color: var(--primary-orange);
-            color: var(--primary-orange);
-            background: rgba(255, 140, 66, 0.05);
         }
 
         /* --- Hero Section --- */
@@ -489,8 +490,11 @@
         <div class="nav-links animate-in delay-1">
             <a href="#">Home</a>
             <a href="#">Features</a>
-            <a href="/create_ad_page/">Run Your Ads</a> <!-- Added link -->
+            <a href="/create_ad_page/">Run Your Ads</a> 
             
+            <!-- Split Login & Sign Up Buttons -->
+            <a href="/advertizer/login-page/" class="btn-nav-login">Log In</a>
+            <a href="/advertizer/signup/" class="btn-nav-signup">Sign Up</a>
         </div>
         <i class="fa-solid fa-bars" style="font-size: 1.2rem; color: var(--text-dark); display: none; cursor: pointer;"></i>
     </nav>
@@ -624,7 +628,7 @@
         <div class="footer-links">
             <a href="#">Privacy Policy</a>
             <a href="#">Terms of Service</a>
-            <a href="#">Advertise with Us</a> <!-- Added link -->
+            <a href="#">Advertise with Us</a>
             <a href="#">Careers</a>
         </div>
         <p>© 2026 VibeBook. Made with <i class="fa-solid fa-heart" style="color: #FF8C42;"></i> in India 🇮🇳</p>

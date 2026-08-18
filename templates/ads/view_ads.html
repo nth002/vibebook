@@ -30,7 +30,6 @@
             background-color: var(--bg-cream);
             color: var(--text-dark);
             min-height: 100vh;
-            /* Unified reduced base font size */
             font-size: 13px;
             line-height: 1.5;
         }
@@ -163,12 +162,6 @@
             box-shadow: 0 4px 14px rgba(76, 175, 80, 0.2);
         }
         .btn-success:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(76, 175, 80, 0.3); }
-
-        .btn-danger {
-            background: #ef4444;
-            color: white;
-        }
-        .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3); }
 
         .btn-secondary {
             background: var(--bg-gray);
@@ -364,6 +357,19 @@
         .detail-row .label { color: var(--text-light); font-weight: 500; }
         .detail-row .value { color: var(--text-dark); font-weight: 500; }
 
+        /* --- Logout Button --- */
+        .btn-logout {
+            background: #ef4444;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+        }
+        .btn-logout:hover { background: #dc2626; }
+
         @media (max-width: 768px) {
             .navbar { flex-direction: column; gap: 10px; padding: 15px; }
             .navbar-menu { flex-wrap: wrap; justify-content: center; width: 100%; }
@@ -395,6 +401,7 @@
         <div class="navbar-menu">
             <a href="/create_ad_page/">📝 Create Ad</a>
             <a href="/view-ads/" class="active">👁️ My Ads</a>
+            <button class="btn-logout" onclick="logoutAdvertizer()">🚪 Logout</button>
         </div>
         <i class="fa-solid fa-bars" style="font-size: 18px; color: var(--text-dark); display: none; cursor: pointer;"></i>
     </nav>
@@ -402,7 +409,7 @@
     <div class="container">
         <div class="page-header">
             <div>
-                <h1>📈 My <span>Campaigns</span></h1>
+                <h1>📈 <span id="companyNameDisplay">My</span> <span>Campaigns</span></h1>
                 <p>View and manage all your ad campaigns</p>
             </div>
             <div class="header-actions">
@@ -481,10 +488,55 @@
 
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
     <script>
-        const API_BASE_URL = 'https://vibebook-4.onrender.com';
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        // const API_BASE_URL = 'https://vibebook-4.onrender.com';
+        const API_BASE_URL = 'http://127.0.0.1:8000';
+
         let allAds = [];
         let filteredAds = [];
+        let currentAdvertiserId = null;
 
+        // ==========================================
+        // CHECK LOGIN & LOAD ADS
+        // ==========================================
+        function checkLoginAndLoad() {
+            // 1. Get the advertiser_id saved in localStorage by the Login page
+            const advertiserId = localStorage.getItem('advertiser_id');
+            const companyName = localStorage.getItem('advertiser_company');
+
+            if (!advertiserId) {
+                // If not logged in, redirect back to login page
+                window.location.href = '/advertizer/login-page/';
+                return;
+            }
+
+            // 2. Set the global variable
+            currentAdvertiserId = advertiserId;
+
+            // 3. Display the company name
+            if (companyName) {
+                document.getElementById('companyNameDisplay').textContent = companyName;
+            }
+
+            // 4. Load the ads
+            loadMyAds();
+        }
+
+        // ==========================================
+        // LOGOUT FUNCTION
+        // ==========================================
+        function logoutAdvertizer() {
+            localStorage.removeItem('advertiser_id');
+            localStorage.removeItem('advertiser_company');
+            localStorage.removeItem('advertiser_username');
+            window.location.href = '/advertizer/login-page/';
+        }
+
+        // ==========================================
+        // SHOW ALERT
+        // ==========================================
         function showAlert(message, type = 'info', duration = 5000) {
             const alertDiv = document.getElementById('alert');
             alertDiv.className = `alert alert-${type}`;
@@ -495,13 +547,21 @@
 
         function hideAlert() { document.getElementById('alert').style.display = 'none'; }
 
+        // ==========================================
+        // FETCH ADS (Filtered by Advertiser ID)
+        // ==========================================
         async function loadMyAds() {
             const container = document.getElementById('adsContainer');
             container.innerHTML = `<div class="loading"><div class="spinner"></div><p>Loading your ads...</p></div>`;
 
+            if (!currentAdvertiserId) {
+                showAlert('Advertiser ID missing. Please log in again.', 'error');
+                return;
+            }
+
             try {
-                // Use public API - no authentication needed
-                const response = await fetch(`${API_BASE_URL}/api/public/ads/`, {
+                // ✅ FIX: Append ?advertiser_id= to the URL
+                const response = await fetch(`${API_BASE_URL}/api/public/ads/?advertiser_id=${currentAdvertiserId}`, {
                     headers: { 'Content-Type': 'application/json' }
                 });
 
@@ -532,10 +592,14 @@
             }
         }
 
+        // ==========================================
+        // FETCH INDIVIDUAL STATS
+        // ==========================================
         async function loadAdStats() {
             for (let ad of allAds) {
                 try {
-                    const response = await fetch(`${API_BASE_URL}/api/public/ads/${ad.id}/stats/`, {
+                    // ✅ FIX: Append ?advertiser_id= to the stats URL
+                    const response = await fetch(`${API_BASE_URL}/api/public/ads/${ad.id}/stats/?advertiser_id=${currentAdvertiserId}`, {
                         headers: { 'Content-Type': 'application/json' }
                     });
 
@@ -553,6 +617,9 @@
             }
         }
 
+        // ==========================================
+        // UPDATE STATS CARDS
+        // ==========================================
         function updateStats() {
             const total = allAds.length;
             const active = allAds.filter(ad => ad.status === 'ACTIVE' && ad.is_active).length;
@@ -567,6 +634,9 @@
             document.getElementById('avgCtr').textContent = avgCtr.toFixed(1) + '%';
         }
 
+        // ==========================================
+        // FILTER ADS
+        // ==========================================
         function filterAds() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const statusFilter = document.getElementById('statusFilter').value;
@@ -592,6 +662,9 @@
             renderAds();
         }
 
+        // ==========================================
+        // RENDER ADS
+        // ==========================================
         function renderAds() {
             const container = document.getElementById('adsContainer');
 
@@ -610,6 +683,9 @@
             container.innerHTML = `<div class="ads-grid">${filteredAds.map(ad => createAdCard(ad)).join('')}</div>`;
         }
 
+        // ==========================================
+        // CREATE AD CARD HTML
+        // ==========================================
         function createAdCard(ad) {
             const statusClass = `status-${(ad.status || 'inactive').toLowerCase()}`;
             const statusText = ad.status || 'Inactive';
@@ -635,7 +711,7 @@
                             <span class="ad-meta-item">${ad.target_gender || 'all'}</span>
                             ${ad.target_age_min ? `<span class="ad-meta-item">${ad.target_age_min}-${ad.target_age_max || '+'} yrs</span>` : ''}
                             ${ad.target_location ? `<span class="ad-meta-item">📍 ${ad.target_location}</span>` : ''}
-                            ${ad.payment_amount ? `<span class="ad-meta-item">💰 $${ad.payment_amount}</span>` : ''}
+                            ${ad.budget ? `<span class="ad-meta-item">💰 $${ad.budget}</span>` : ''}
                         </div>
                         <div class="ad-dates">
                             <span>📅 ${startDate}</span>
@@ -665,6 +741,9 @@
             `;
         }
 
+        // ==========================================
+        // VIEW AD DETAILS (WITH ADVERTISER ID)
+        // ==========================================
         async function viewAdDetails(adId) {
             const modal = document.getElementById('adModal');
             const modalTitle = document.getElementById('modalTitle');
@@ -675,14 +754,14 @@
             modal.classList.add('active');
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/public/ads/${adId}/`, {
+                const response = await fetch(`${API_BASE_URL}/api/public/ads/${adId}/?advertiser_id=${currentAdvertiserId}`, {
                     headers: { 'Content-Type': 'application/json' }
                 });
                 if (!response.ok) throw new Error('Failed to load ad details');
                 const result = await response.json();
                 const ad = result.data;
 
-                const statsResponse = await fetch(`${API_BASE_URL}/api/public/ads/${adId}/stats/`, {
+                const statsResponse = await fetch(`${API_BASE_URL}/api/public/ads/${adId}/stats/?advertiser_id=${currentAdvertiserId}`, {
                     headers: { 'Content-Type': 'application/json' }
                 });
                 let stats = { data: { views: 0, clicks: 0, ctr: 0 } };
@@ -735,8 +814,8 @@
                             <span class="value">${new Date(ad.created_at).toLocaleString()}</span>
                         </div>
                         <div class="detail-row">
-                            <span class="label">Payment</span>
-                            <span class="value">${ad.payment_amount ? `$${ad.payment_amount}` : 'N/A'}</span>
+                            <span class="label">Budget</span>
+                            <span class="value">$${ad.budget || '0.00'}</span>
                         </div>
                         ${ad.cta_url ? `
                             <div class="detail-row" style="grid-column:span 2;">
@@ -783,6 +862,9 @@
         function closeModal() { document.getElementById('adModal').classList.remove('active'); }
         document.getElementById('adModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
 
+        // ==========================================
+        // TRACK CLICK
+        // ==========================================
         async function trackAdClick(adId) {
             try {
                 const response = await fetch(`${API_BASE_URL}/api/public/ads/${adId}/click/`, {
@@ -801,8 +883,10 @@
 
         document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
 
-        // Auto-load on page load
-        loadMyAds();
+        // ==========================================
+        // INITIALIZE
+        // ==========================================
+        checkLoginAndLoad();
     </script>
 </body>
 </html>

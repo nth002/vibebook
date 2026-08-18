@@ -511,6 +511,43 @@ class Notification(models.Model):
     def __str__(self):
         return f'{self.user.full_name}: {self.message[:50]}'
 
+class Advertizer(models.Model):
+    """
+    Standalone table for advertisers with their own login system.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Login Credentials (Stored separately from main User table)
+    username = models.CharField(max_length=150, unique=True)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128)  # Stores hashed password
+    
+    # Business Details
+    company_name = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    website_url = models.URLField(max_length=500, blank=True, null=True)
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'advertizers'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.company_name} ({self.username})"
+
+    def set_password(self, raw_password):
+        """Hashes and sets the password"""
+        self.password = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        """Checks if the raw password matches the stored hash"""
+        return check_password(raw_password, self.password)
+
+
 class Advertisement(models.Model):
     """
     Advertisement Model - For displaying ads in the feed
@@ -538,15 +575,15 @@ class Advertisement(models.Model):
     # Brand/Company
     brand_name = models.CharField(max_length=255)
     brand_logo = models.URLField(max_length=500, blank=True, null=True)
-    brand_color = models.CharField(max_length=7, default='#1877F2')  # Hex color code
+    brand_color = models.CharField(max_length=7, default='#1877F2')
     
     # Call to Action
     cta_text = models.CharField(max_length=50, default='Learn More')
     cta_url = models.URLField(max_length=500, blank=True, null=True)
-    cta_action = models.CharField(max_length=50, blank=True, null=True)  # For deep linking
+    cta_action = models.CharField(max_length=50, blank=True, null=True)
     
     # Targeting
-    target_audience = models.JSONField(default=dict, blank=True)  # Age, location, interests
+    target_audience = models.JSONField(default=dict, blank=True)
     target_gender = models.CharField(max_length=20, blank=True, null=True)
     target_age_min = models.IntegerField(null=True, blank=True)
     target_age_max = models.IntegerField(null=True, blank=True)
@@ -564,14 +601,20 @@ class Advertisement(models.Model):
     # Engagement
     impressions = models.IntegerField(default=0)
     clicks = models.IntegerField(default=0)
-    ctr = models.FloatField(default=0.0)  # Click-through rate
+    ctr = models.FloatField(default=0.0)
     
     # Budget
     budget = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     spent = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
-    # Creator/Advertiser
-    advertiser = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='ads')
+    # ==========================================
+    # UPDATED: Points to the new Advertizer table
+    # ==========================================
+    advertiser = models.ForeignKey(
+        Advertizer, 
+        on_delete=models.CASCADE, 
+        related_name='ads'
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -616,7 +659,6 @@ class Advertisement(models.Model):
         self.save()
     
     def get_color_code(self):
-        """Convert hex color to Color value for Flutter"""
         return self.brand_color.lstrip('#')
 
 

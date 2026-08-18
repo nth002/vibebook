@@ -70,7 +70,6 @@ urlpatterns = [
 
     path('api/coffee-shops/', views.GetCoffeeShopsView.as_view(), name='get-coffee-shops'),
 
-
     path('api/ads/create/', views.CreateAdView.as_view(), name='create-ad'),
     path('api/ads/active/', views.GetActiveAdsView.as_view(), name='active-ads'),
     path('api/ads/all/', views.GetAllAdsView.as_view(), name='all-ads'),
@@ -88,11 +87,17 @@ urlpatterns = [
     path('api/public/ads/<uuid:ad_id>/view/', views.PublicTrackAdViewView.as_view(), name='public_track_view'),
     path('api/public/ads/<uuid:ad_id>/click/', views.PublicTrackAdClickView.as_view(), name='public_track_click'),
     path('api/public/ads/<uuid:ad_id>/stats/', views.PublicGetAdStatsView.as_view(), name='public_ad_stats'),
-    
 
+    path('advertizer/login/', views.AdvertizerLoginView.as_view(), name='advertizer_login'),
+    path('api/advertizer/login/', views.AdvertizerLoginView.as_view(), name='advertizer_login'),
+
+    path('api/advertizer/register/', views.AdvertizerRegisterView.as_view(), name='advertizer_register'),
+
+
+    path('advertizer/signup/', views.signup_page, name='signup_page'),
+    path('advertizer/login-page/', views.login_page, name='login_page'),
     
 ]
-
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

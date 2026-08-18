@@ -30,7 +30,6 @@
             background-color: var(--bg-cream);
             color: var(--text-dark);
             min-height: 100vh;
-            /* Base font reduced roughly 70% (from ~16px to 13px) */
             font-size: 13px;
             line-height: 1.5;
         }
@@ -103,9 +102,22 @@
             border: none;
         }
 
+        /* --- Logout Button --- */
+        .btn-logout {
+            background: #ef4444;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+        }
+        .btn-logout:hover { background: #dc2626; }
+
         /* --- Main Layout --- */
         .container {
-            max-width: 960px; /* Wider for multi-card layout */
+            max-width: 960px;
             margin: 40px auto;
             padding: 0 20px;
         }
@@ -206,7 +218,7 @@
             gap: 12px;
         }
 
-        /* --- Payment Section (Inside its own card) --- */
+        /* --- Payment Section --- */
         .payment-options {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
@@ -382,7 +394,6 @@
         #successDetails div:last-child { border-bottom: none; }
         #successDetails strong { color: var(--text-dark); }
 
-        /* --- Responsive --- */
         @media (max-width: 768px) {
             body { font-size: 12px; }
             .navbar { padding: 12px 16px; flex-wrap: wrap; gap: 10px;}
@@ -408,6 +419,7 @@
         <div class="navbar-menu">
             <a href="/create_ad_page/" class="active">📝 Create Ad</a>
             <a href="/view-ads/">👁️ View Ads</a>
+            <button class="btn-logout" onclick="logoutAdvertizer()">🚪 Logout</button>
         </div>
         <i class="fa-solid fa-bars" style="font-size: 18px; color: var(--text-dark); display: none; cursor: pointer;"></i>
     </nav>
@@ -635,20 +647,52 @@
             <p>Your advertisement is now active and reaching the right audience.</p>
             <div id="successDetails"></div>
             <div class="btn-group">
-                <button class="btn btn-primary" onclick="window.location.href='/'">Create Another</button>
-                <button class="btn btn-secondary" onclick="window.location.href='/view-ads/'">View My Ads</button>
+                <button class="btn btn-primary" onclick="window.location.href='/view-ads/'">View My Ads</button>
+                <button class="btn btn-secondary" onclick="window.location.href='/create_ad_page/'">Create Another</button>
             </div>
         </div>
     </div>
 
     <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
     <script>
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
         const API_BASE_URL = 'https://vibebook-4.onrender.com';
+        // const API_BASE_URL = 'http://127.0.0.1:8000';
+
         let selectedPrice = 500;
         let selectedDays = 30;
         let createdAdData = null;
         let selectedPaymentMethod = 'Credit Card';
+        let currentAdvertiserId = null;
 
+        // ==========================================
+        // CHECK LOGIN ON PAGE LOAD
+        // ==========================================
+        function checkLogin() {
+            const advertiserId = localStorage.getItem('advertiser_id');
+            if (!advertiserId) {
+                // If not logged in, redirect to login page
+                window.location.href = '/advertizer/login-page/';
+                return;
+            }
+            currentAdvertiserId = advertiserId;
+        }
+
+        // ==========================================
+        // LOGOUT FUNCTION
+        // ==========================================
+        function logoutAdvertizer() {
+            localStorage.removeItem('advertiser_id');
+            localStorage.removeItem('advertiser_company');
+            localStorage.removeItem('advertiser_username');
+            window.location.href = '/advertizer/login-page/';
+        }
+
+        // ==========================================
+        // ALERTS
+        // ==========================================
         function showAlert(message, type = 'info', duration = 5000) {
             const alertDiv = document.getElementById('alert');
             alertDiv.className = `alert alert-${type}`;
@@ -659,6 +703,9 @@
 
         function hideAlert() { document.getElementById('alert').style.display = 'none'; }
 
+        // ==========================================
+        // PAYMENT SELECTION LOGIC
+        // ==========================================
         function selectPayment(element) {
             document.querySelectorAll('.payment-option').forEach(opt => opt.classList.remove('selected'));
             element.classList.add('selected');
@@ -688,7 +735,6 @@
         function updateTotalCost() {
             document.getElementById('totalCost').textContent = `₹${selectedPrice.toFixed(2)}`;
             document.getElementById('selectedDays').textContent = selectedDays;
-            // Update dummy end date
             const endDate = new Date();
             endDate.setDate(endDate.getDate() + selectedDays);
             document.getElementById('endDateDisplay').value = endDate.toLocaleDateString();
@@ -700,9 +746,20 @@
             selectedPaymentMethod = element.querySelector('.method-name').textContent;
         }
 
+        // ==========================================
+        // CREATE AD FORM SUBMISSION
+        // ==========================================
         async function createAd(event) {
             event.preventDefault();
             hideAlert();
+            
+            // Double check login before submitting
+            if (!currentAdvertiserId) {
+                showAlert('You are not logged in. Redirecting to login...', 'error');
+                setTimeout(() => window.location.href = '/advertizer/login-page/', 1500);
+                return;
+            }
+
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.disabled = true;
             submitBtn.textContent = '⏳ Processing...';
@@ -713,7 +770,9 @@
                 const endDate = new Date();
                 endDate.setDate(endDate.getDate() + selectedDays);
 
+                // ✅ FIX: INCLUDE ADVERTISER ID IN THE REQUEST BODY
                 const adData = {
+                    advertiser_id: currentAdvertiserId, // Taken from localStorage
                     title: document.getElementById('title').value.trim(),
                     description: document.getElementById('description').value.trim(),
                     image_url: document.getElementById('image_url').value.trim(),
@@ -727,7 +786,8 @@
                     target_age_max: document.getElementById('target_age_max').value || null,
                     target_location: document.getElementById('target_location').value.trim() || null,
                     start_date: startDate.toISOString(),
-                    end_date: endDate.toISOString()
+                    end_date: endDate.toISOString(),
+                    budget: selectedPrice
                 };
 
                 if (!adData.title) throw new Error('Title is required');
@@ -744,19 +804,21 @@
                     if (createResponse.ok) {
                         const result = await createResponse.json();
                         createdAd = result.data;
+                    } else {
+                        const errData = await createResponse.json();
+                        throw new Error(errData.error || 'Failed to create ad');
                     }
                 } catch (apiError) {
-                    console.log('API not available, using dummy data');
-                }
-
-                if (!createdAd) {
-                    createdAd = {
-                        id: 'dummy_' + Date.now(),
-                        ...adData,
-                        status: 'ACTIVE',
-                        is_active: true,
-                        created_at: new Date().toISOString()
-                    };
+                    console.log('API Error:', apiError.message);
+                    // Uncomment below to test the UI flow locally without backend
+                    // createdAd = {
+                    //     id: 'dummy_' + Date.now(),
+                    //     ...adData,
+                    //     status: 'ACTIVE',
+                    //     is_active: true,
+                    //     created_at: new Date().toISOString()
+                    // };
+                    throw apiError;
                 }
 
                 createdAdData = createdAd;
@@ -821,7 +883,7 @@
                 <div><strong>Ad ID:</strong> ${adData.id}</div>
                 <div><strong>Title:</strong> ${adData.title}</div>
                 <div><strong>Brand:</strong> ${adData.brand_name}</div>
-                <div><strong>Amount Paid:</strong> $${amount}</div>
+                <div><strong>Amount Paid:</strong> ₹${amount}</div>
                 <div><strong>Duration:</strong> ${days} days</div>
                 <div><strong>Payment Method:</strong> ${selectedPaymentMethod}</div>
                 <div><strong>Status:</strong> <span style="color:${statusColor};font-weight:600;">${statusText}</span></div>
@@ -837,7 +899,10 @@
         document.getElementById('successModal').addEventListener('click', function(e) { if (e.target === this) closeSuccessModal(); });
         document.addEventListener('keydown', function(e) { if (e.key === 'Escape') { closePaymentModal(); closeSuccessModal(); } });
 
-        // Initialize
+        // ==========================================
+        // INITIALIZE
+        // ==========================================
+        checkLogin();
         updateTotalCost();
     </script>
 </body>
